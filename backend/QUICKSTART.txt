@@ -1,0 +1,384 @@
+🚀 **VOLUNTEERMATCH BACKEND - SETUP GUIDE**
+
+===============================================================
+QUICK START (60 seconds)
+===============================================================
+
+1️⃣  Install PostgreSQL
+   Windows: Download from https://www.postgresql.org/download/windows/
+   Mac: brew install postgresql
+   Linux: apt-get install postgresql
+
+2️⃣  Start PostgreSQL
+   Windows: Services → PostgreSQL → Start
+   Mac: brew services start postgresql
+   Docker: docker run --name volunteer_db -e POSTGRES_PASSWORD=volunteer_pass -e POSTGRES_DB=volunteer_db -p 5432:5432 -d postgres:15
+
+3️⃣  Create Database (run in PostgreSQL terminal or psql):
+   
+   On Windows (Command Prompt):
+   ```
+   cd backend
+   setup_db.bat
+   ```
+   
+   On Mac/Linux (Terminal):
+   ```
+   cd backend
+   bash setup_db.sh
+   ```
+   
+   Or manually in psql:
+   ```sql
+   CREATE DATABASE volunteer_db;
+   CREATE USER volunteer_user WITH PASSWORD 'volunteer_pass';
+   GRANT ALL PRIVILEGES ON DATABASE volunteer_db TO volunteer_user;
+   ```
+
+4️⃣  Install Python Dependencies
+   ```
+   cd backend
+   pip install -r requirements.txt
+   ```
+
+5️⃣  Seed Demo Data
+   ```
+   python seed.py
+   ```
+
+6️⃣  Start Backend Server
+   ```
+   python quick_start.py
+   ```
+   OR
+   ```
+   uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+   ```
+
+7️⃣  Access API
+   Browser: http://localhost:8000/docs
+   Real API calls go to: http://localhost:8000
+
+===============================================================
+DEMO CREDENTIALS
+===============================================================
+
+NGO Account:
+   Email: ngo@demo.com
+   Password: demo123
+
+Volunteers (50 total):
+   Emails: volunteer1@demo.com - volunteer50@demo.com
+   Password: demo123 (all)
+
+===============================================================
+FOLDER STRUCTURE
+===============================================================
+
+backend/
+├── app/
+│   ├── main.py                    # FastAPI entry point
+│   ├── models/models.py           # Database models (User, Volunteer, Request, Assignment)
+│   ├── schemas/schemas.py         # API request/response schemas
+│   ├── routes/
+│   │   ├── auth.py               # Register/Login endpoints
+│   │   ├── volunteers.py         # Volunteer management
+│   │   ├── requests.py           # Request CRUD
+│   │   ├── assignments.py        # Assignment status updates
+│   │   ├── matching.py           # Matching algorithm
+│   │   └── dashboard.py          # Stats & heatmap
+│   ├── services/matching.py      # Core matching algorithm
+│   ├── db/database.py            # SQLAlchemy setup
+│   ├── core/config.py            # Settings
+│   └── utils/geo.py              # Haversine distance calculation
+│
+├── seed.py                        # Demo data generator (50 volunteers, 15 requests)
+├── quick_start.py                 # One-command startup script
+├── setup_db.sh                    # PostgreSQL setup (Mac/Linux)
+├── setup_db.bat                   # PostgreSQL setup (Windows)
+├── requirements.txt               # Python dependencies
+├── .env                           # Environment variables
+├── .gitignore                     # Git ignore list
+└── README.md                      # Full documentation
+
+===============================================================
+KEY FEATURES
+===============================================================
+
+✅ Intelligent Matching Algorithm
+   - Skills alignment (40%)
+   - Geographic proximity (25%)
+   - Urgency level (20%)
+   - Reliability score (15%)
+
+✅ User Management
+   - NGO registration & login
+   - Volunteer profiles
+   - Availability status
+   - Reliability scoring
+
+✅ Request Management
+   - Medical, Food, Rescue, Construction, Logistics, Counseling types
+   - Location-based (latitude/longitude)
+   - Urgency levels (1-5)
+   - Multi-volunteer support
+
+✅ Assignment Workflow
+   - Auto-matching volunteers
+   - Accept/Reject actions
+   - Completion tracking
+   - Reliability updates
+
+✅ Dashboard
+   - KPI statistics
+   - Heatmap with volunteer/request locations
+   - Volunteer count & distribution
+   - Task completion metrics
+
+===============================================================
+API ENDPOINTS SUMMARY
+===============================================================
+
+Authentication:
+   POST /auth/register
+   POST /auth/login
+
+Volunteers:
+   POST   /volunteers
+   GET    /volunteers
+   GET    /volunteers/{id}
+   PATCH  /volunteers/{id}
+
+Requests:
+   POST   /requests
+   GET    /requests
+   GET    /requests/{id}
+   PATCH  /requests/{id}
+
+Matching:
+   POST   /match/{request_id}
+   POST   /match/assign/{request_id}
+
+Assignments:
+   POST   /assignments/{id}/accept
+   POST   /assignments/{id}/reject
+   POST   /assignments/{id}/complete
+   GET    /assignments/{id}
+
+Dashboard:
+   GET    /dashboard/stats
+   GET    /dashboard/heatmap
+
+===============================================================
+TROUBLESHOOTING
+===============================================================
+
+Q: "Connection refused" error?
+A: PostgreSQL not running. Start it:
+   - Windows: Services → Start PostgreSQL
+   - Mac: brew services start postgresql
+   - Docker: docker start volunteer_db
+
+Q: "Database does not exist"?
+A: Run setup_db.sh (Mac/Linux) or setup_db.bat (Windows)
+   Or: psql -U postgres then run the SQL commands
+
+Q: "ModuleNotFoundError"?
+A: pip install -r requirements.txt
+
+Q: Port 8000 already in use?
+A: uvicorn app.main:app --port 8001 (use different port)
+
+Q: How to reset database?
+A: 
+   dropdb volunteer_db (caution: deletes all data)
+   createdb volunteer_db
+   python seed.py
+
+===============================================================
+DATABASE SCHEMA
+===============================================================
+
+users
+   - id (PK)
+   - name, email (unique), password_hash
+   - role (ngo, volunteer)
+   - created_at, updated_at
+
+volunteers
+   - id (PK)
+   - user_id (FK)
+   - latitude, longitude (location)
+   - skills (array of strings)
+   - is_available (boolean)
+   - reliability_score (0-1, default 1.0)
+   - tasks_completed, tasks_rejected (counters)
+   - created_at, updated_at
+
+requests
+   - id (PK)
+   - type (medical, food, rescue, construction, logistics, counseling)
+   - title, description
+   - latitude, longitude
+   - urgency (1-5)
+   - status (pending, assigned, completed)
+   - volunteers_needed
+   - created_by (FK to User/NGO)
+   - deadline, created_at, updated_at
+
+assignments
+   - id (PK)
+   - request_id (FK)
+   - volunteer_id (FK)
+   - match_score (0-1)
+   - status (assigned, accepted, rejected, completed)
+   - assigned_at, accepted_at, completed_at, rejected_at
+
+===============================================================
+EXAMPLE API CALL
+===============================================================
+
+Create Request:
+   POST http://localhost:8000/requests?user_id=1
+   {
+     "type": "medical",
+     "title": "Medical Support Needed",
+     "description": "Help at community clinic",
+     "latitude": 37.7749,
+     "longitude": -122.4194,
+     "urgency": 4,
+     "volunteers_needed": 2
+   }
+
+Find Matching Volunteers:
+   POST http://localhost:8000/match/1
+
+Auto-Assign Best:
+   POST http://localhost:8000/match/assign/1
+
+Volunteer Accepts:
+   POST http://localhost:8000/assignments/1/accept
+
+Volunteer Completes:
+   POST http://localhost:8000/assignments/1/complete
+
+Get Stats:
+   GET http://localhost:8000/dashboard/stats
+
+===============================================================
+MATCHING ALGORITHM DETAILS
+===============================================================
+
+Score = 0.4*skill + 0.25*proximity + 0.2*urgency + 0.15*reliability
+
+Skill Score (40%):
+   - Exact match = 1.0
+   - Related match = 0.6
+   - No match = 0.2
+
+Proximity Score (25%):
+   - Uses Haversine formula for distance
+   - Score = max(0, 1 - distance_km / 25km)
+   - Volunteers >25km filtered out
+
+Urgency Score (20%):
+   - Score = urgency / 5 (urgency from 1-5)
+
+Reliability Score (15%):
+   - Stored per volunteer (0-1)
+   - +0.05 on completion
+   - -0.10 on rejection
+
+Filters (must all pass):
+   - is_available = true
+   - not already assigned to request
+   - within 25km distance
+
+===============================================================
+RELIABILITY SCORING LOGIC
+===============================================================
+
+Actions that update reliability_score:
+
+Complete assignment:
+   score = min(1.0, score + 0.05)
+   tasks_completed += 1
+
+Reject assignment:
+   score = max(0.0, score - 0.10)
+   tasks_rejected += 1
+
+This creates incentive for volunteers to accept and complete
+tasks, improving their match quality over time.
+
+===============================================================
+CONNECTING TO FRONTEND
+===============================================================
+
+The React/Next.js frontend connects via:
+
+1. API Calls:
+   fetch('http://localhost:8000/auth/login', { method: 'POST', ... })
+   fetch('http://localhost:8000/dashboard/stats')
+
+2. CORS is enabled (open to all origins for hackathon)
+
+3. Return format is JSON matching schemas.py
+
+4. Use access_token from /auth/login for authenticated endpoints
+
+Example in frontend:
+   const response = await fetch('http://localhost:8000/match/1')
+   const candidates = await response.json()
+   setState(candidates.candidates)
+
+===============================================================
+PRODUCTION CHECKLIST
+===============================================================
+
+Before deploying to production:
+
+☐ Change SECRET_KEY in .env
+☐ Set DEBUG=False
+☐ Restrict CORS to actual frontend domain
+☐ Use environment variables for all secrets
+☐ Setup HTTPS/SSL
+☐ Add rate limiting
+☐ Add input validation & sanitization
+☐ Setup logging & monitoring
+☐ Database backups
+☐ Use strong passwords
+☐ Hide error details in responses
+☐ Test all edge cases
+
+===============================================================
+SUPPORT & RESOURCES
+===============================================================
+
+Documentation: See README.md for full details
+Interactive Docs: http://localhost:8000/docs
+Alternative Docs: http://localhost:8000/redoc
+
+Endpoints & Examples:
+1. Go to http://localhost:8000/docs
+2. Expand each endpoint
+3. Click "Try it out"
+4. Fill in parameters
+5. Click "Execute"
+
+Database Schema: See README.md "Database Schema" section
+Matching Details: See README.md "Matching Algorithm" section
+API Workflows: See README.md "Example Workflows" section
+
+===============================================================
+
+✅ YOU'RE READY TO GO!
+
+Next steps:
+1. Follow Quick Start steps above
+2. Visit http://localhost:8000/docs
+3. Try example API calls
+4. Connect frontend (set API_URL=http://localhost:8000)
+5. Test complete workflow end-to-end
+6. Demo live! 🚀
+

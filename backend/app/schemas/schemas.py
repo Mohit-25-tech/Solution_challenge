@@ -1,0 +1,223 @@
+from pydantic import BaseModel, EmailStr
+from typing import Optional, List
+from datetime import datetime
+from enum import Enum
+
+
+class UserRole(str, Enum):
+    ngo = "ngo"
+    volunteer = "volunteer"
+
+
+class RequestType(str, Enum):
+    medical = "medical"
+    food = "food"
+    rescue = "rescue"
+    construction = "construction"
+    logistics = "logistics"
+    counseling = "counseling"
+
+
+class RequestStatus(str, Enum):
+    pending = "pending"
+    assigned = "assigned"
+    completed = "completed"
+
+
+class AssignmentStatus(str, Enum):
+    assigned = "assigned"
+    accepted = "accepted"
+    rejected = "rejected"
+    completed = "completed"
+
+
+# ====== User Schemas ======
+class UserRegister(BaseModel):
+    name: str
+    email: EmailStr
+    password: str
+    role: UserRole
+
+
+class UserLogin(BaseModel):
+    email: EmailStr
+    password: str
+
+
+class UserResponse(BaseModel):
+    id: int
+    name: str
+    email: str
+    role: UserRole
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str
+    user: UserResponse
+
+
+# ====== Volunteer Schemas ======
+class VolunteerCreate(BaseModel):
+    latitude: float
+    longitude: float
+    skills: List[str]
+    is_available: bool = True
+
+
+class VolunteerUpdate(BaseModel):
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    skills: Optional[List[str]] = None
+    is_available: Optional[bool] = None
+
+
+class VolunteerResponse(BaseModel):
+    id: int
+    user_id: int
+    latitude: float
+    longitude: float
+    skills: List[str]
+    is_available: bool
+    reliability_score: float
+    tasks_completed: int
+    tasks_rejected: int
+    created_at: datetime
+    user: UserResponse
+
+    class Config:
+        from_attributes = True
+
+
+# ====== Request Schemas ======
+class RequestCreate(BaseModel):
+    type: RequestType
+    title: str
+    description: str
+    latitude: float
+    longitude: float
+    urgency: int  # 1-5
+    volunteers_needed: int = 1
+    deadline: Optional[datetime] = None
+
+
+class RequestUpdate(BaseModel):
+    status: Optional[RequestStatus] = None
+    urgency: Optional[int] = None
+    volunteers_needed: Optional[int] = None
+
+
+class RequestResponse(BaseModel):
+    id: int
+    type: RequestType
+    title: str
+    description: str
+    latitude: float
+    longitude: float
+    urgency: int
+    status: RequestStatus
+    volunteers_needed: int
+    created_by: int
+    created_at: datetime
+    updated_at: datetime
+    deadline: Optional[datetime]
+
+    class Config:
+        from_attributes = True
+
+
+class RequestDetailResponse(RequestResponse):
+    created_by_user: UserResponse
+    assignments: List["AssignmentResponse"]
+
+
+# ====== Assignment Schemas ======
+class AssignmentCreate(BaseModel):
+    request_id: int
+    volunteer_id: int
+    match_score: float = 0.0
+
+
+class AssignmentResponse(BaseModel):
+    id: int
+    request_id: int
+    volunteer_id: int
+    match_score: float
+    status: AssignmentStatus
+    assigned_at: datetime
+    accepted_at: Optional[datetime]
+    completed_at: Optional[datetime]
+    rejected_at: Optional[datetime]
+
+    class Config:
+        from_attributes = True
+
+
+class AssignmentDetailResponse(AssignmentResponse):
+    volunteer: VolunteerResponse
+    request: RequestResponse
+
+
+# ====== Matching Schemas ======
+class MatchCandidate(BaseModel):
+    volunteer_id: int
+    volunteer_name: str
+    match_score: float
+    reason: str
+    distance_km: float
+    volunteer: VolunteerResponse
+
+
+class MatchResult(BaseModel):
+    request_id: int
+    candidates: List[MatchCandidate]
+
+
+class AutoAssignResult(BaseModel):
+    success: bool
+    assignment_id: Optional[int] = None
+    volunteer_id: Optional[int] = None
+    match_score: Optional[float] = None
+    message: str
+
+
+# ====== Dashboard Schemas ======
+class DashboardStats(BaseModel):
+    total_volunteers: int
+    active_requests: int
+    completed_tasks: int
+    total_assignments: int
+    average_reliability: float
+    pending_assignments: int
+
+
+class VolunteerHeatmapPoint(BaseModel):
+    volunteer_id: int
+    latitude: float
+    longitude: float
+    skills: List[str]
+    is_available: bool
+    reliability_score: float
+
+
+class RequestHeatmapPoint(BaseModel):
+    request_id: int
+    latitude: float
+    longitude: float
+    type: RequestType
+    urgency: int
+    status: RequestStatus
+
+
+class HeatmapData(BaseModel):
+    volunteers: List[VolunteerHeatmapPoint]
+    requests: List[RequestHeatmapPoint]
+
+
+# Update forward references
+RequestDetailResponse.model_rebuild()
+AssignmentDetailResponse.model_rebuild()
