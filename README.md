@@ -1,84 +1,92 @@
 # Smart Resource Allocation System for Volunteer Coordination
 
-End-to-end hackathon project with:
-- Frontend: Next.js + TypeScript
-- Backend: FastAPI + SQLAlchemy
+Full-stack volunteer coordination platform with role-based UX for NGOs and volunteers.
+
+- Frontend: Next.js 16, React 19, TypeScript, Tailwind CSS
+- Backend: FastAPI, SQLAlchemy, Pydantic
 - Database: PostgreSQL
 
-## Project Structure
+## Current Project Structure
 
-- frontend app: root folder
-- backend API: backend
+```text
+Solution_challenge/
+|- app/                          # Next.js App Router pages
+|  |- page.tsx                   # Landing page
+|  |- login/page.tsx
+|  |- signup/page.tsx
+|  |- coordinator/
+|  |  |- dashboard/page.tsx
+|  |  |- analytics/page.tsx
+|  |  |- requests/page.tsx
+|  |  |- volunteers/page.tsx
+|  |- volunteer/
+|     |- portal/page.tsx
+|     |- available/page.tsx
+|     |- profile/page.tsx
+|- components/                   # Shared UI + feature components
+|- lib/                          # API layer, auth context, utils
+|- hooks/
+|- backend/
+|  |- app/
+|  |  |- main.py                 # FastAPI app + route registration
+|  |  |- routes/                 # auth, volunteers, requests, matching, assignments, dashboard, volunteer_portal
+|  |  |- services/               # Matching engine
+|  |  |- models/                 # SQLAlchemy models
+|  |  |- schemas/                # Pydantic schemas
+|  |  |- db/                     # DB session/engine setup
+|  |  |- core/                   # Settings/config
+|  |- seed.py                    # Demo data seeding
+|  |- requirements.txt
+|  |- setup_db.bat / setup_db.sh
+|- README.md
+```
 
 ## Prerequisites
 
-- Node.js 20+ (recommended: 20 or 22 LTS)
-- Python 3.11+ (your current setup can work with 3.14 as configured)
-- PostgreSQL 18 (or 15+)
+- Node.js 20+
+- Python 3.10+
+- PostgreSQL 15+ (18 works as well)
 
-## 1) Clone and Open Project
+## Environment Variables
 
-```powershell
-git clone <your-repo-url>
-cd Solution_challenge
-```
+Frontend:
 
-## 2) Frontend Setup
+- `NEXT_PUBLIC_API_URL` (optional)
+- Default if missing: `http://127.0.0.1:8000`
 
-Install dependencies:
+Backend:
+
+- Reads from `backend/.env` (via pydantic-settings)
+- Default DB URL in code:
+  `postgresql+psycopg://volunteer_user:volunteer_pass@localhost:5432/volunteer_db`
+
+## Setup and Run
+
+### 1) Install Frontend Dependencies
+
+From project root:
 
 ```powershell
 npm install
 ```
 
-Run frontend:
-
-```powershell
-npm run dev
-```
-
-Frontend URL:
-- http://localhost:3000
-
-Build frontend:
-
-```powershell
-npm run build
-npm start
-```
-
-## 3) PostgreSQL Setup
-
-Make sure PostgreSQL service is running.
-
-Default service name used in this project:
-
-```powershell
-Start-Service postgresql-x64-18
-```
-
-If needed, open PostgreSQL shell:
-
-```powershell
-& "C:\Program Files\PostgreSQL\18\bin\psql.exe" -U postgres -h localhost -d postgres
-```
-
-## 4) Backend Setup
-
-Open a new terminal and run:
+### 2) Setup Backend
 
 ```powershell
 cd backend
 python -m pip install -r requirements.txt
 ```
 
-Environment file:
-- backend/.env is already included for local setup
-
-Create or verify DB user and DB (if not already done):
+Create DB/user (Windows):
 
 ```powershell
 .\setup_db.bat
+```
+
+Or on macOS/Linux:
+
+```bash
+bash setup_db.sh
 ```
 
 Seed demo data:
@@ -87,92 +95,126 @@ Seed demo data:
 python seed.py
 ```
 
-Run backend:
+### 3) Start Backend API
+
+From `backend` folder:
 
 ```powershell
 uvicorn app.main:app --reload
 ```
 
-If running from project root instead of backend folder:
+Or from project root:
 
 ```powershell
 uvicorn --app-dir backend app.main:app --reload
 ```
 
-Backend URLs:
-- API: http://127.0.0.1:8000
-- Swagger docs: http://127.0.0.1:8000/docs
-- ReDoc: http://127.0.0.1:8000/redoc
+### 4) Start Frontend
 
-## 5) Run Full App Locally
-
-Use 2 terminals:
-
-Terminal A (backend):
-
-```powershell
-cd backend
-uvicorn app.main:app --reload
-```
-
-Terminal B (frontend):
+From project root in a second terminal:
 
 ```powershell
 npm run dev
 ```
 
-Open:
+## Local URLs
+
 - Frontend: http://localhost:3000
-- Backend docs: http://127.0.0.1:8000/docs
+- Backend API: http://127.0.0.1:8000
+- Swagger: http://127.0.0.1:8000/docs
+- ReDoc: http://127.0.0.1:8000/redoc
+
+## Available Scripts
+
+Frontend (root `package.json`):
+
+- `npm run dev` - Start Next.js dev server
+- `npm run build` - Production build
+- `npm run start` - Run production build
+- `npm run lint` - ESLint
+
+Backend:
+
+- `python quick_start.py` - Installs deps, checks DB, seeds, and starts API
+- `python seed.py` - Reseed demo data
+
+## API Surface (Current)
+
+Auth:
+
+- `POST /auth/register`
+- `POST /auth/login`
+
+Volunteers:
+
+- `POST /volunteers`
+- `GET /volunteers`
+- `GET /volunteers/{volunteer_id}`
+- `PATCH /volunteers/{volunteer_id}`
+
+Requests:
+
+- `POST /requests?user_id=...`
+- `GET /requests`
+- `GET /requests/{request_id}`
+- `PATCH /requests/{request_id}`
+
+Matching:
+
+- `POST /match/{request_id}`
+- `POST /match/assign/{request_id}`
+
+Assignments:
+
+- `POST /assignments/{assignment_id}/accept`
+- `POST /assignments/{assignment_id}/reject`
+- `POST /assignments/{assignment_id}/complete`
+- `GET /assignments/{assignment_id}`
+
+Volunteer Portal:
+
+- `GET /volunteer/recommended?volunteer_id=...`
+- `GET /volunteer/nearby?volunteer_id=...&latitude=...&longitude=...&limit=...`
+- `GET /volunteer/tasks?volunteer_id=...&status_filter=...`
+
+Dashboard:
+
+- `GET /dashboard/stats`
+- `GET /dashboard/heatmap`
+
+Health:
+
+- `GET /`
+- `GET /health`
 
 ## Demo Credentials
 
-NGO:
-- email: ngo@demo.com
-- password: demo123
-
-Volunteers:
-- email: volunteer1@demo.com to volunteer50@demo.com
-- password: demo123
+- NGO:
+  - Email: ngo@demo.com
+  - Password: demo123
+- Volunteers:
+  - Email range: volunteer1@demo.com to volunteer50@demo.com
+  - Password: demo123
 
 ## Common Issues
 
-### npm run dev fails
+1. Frontend cannot reach backend
 
-Check Node version:
+- Confirm backend is running on port 8000
+- Set `NEXT_PUBLIC_API_URL` if using a different host/port
 
-```powershell
-node -v
-```
+2. Database connection errors during seed/run
 
-Use Node 20+.
+- Ensure PostgreSQL service is running
+- Re-run `backend/setup_db.bat` (Windows) or `backend/setup_db.sh` (macOS/Linux)
+- Verify credentials in `backend/.env`
 
-### python seed.py fails with DB error
+3. Uvicorn import error from root folder
 
-Usually means DB/user/password mismatch. Re-run:
+- Use: `uvicorn --app-dir backend app.main:app --reload`
 
-```powershell
-.\setup_db.bat
-python seed.py
-```
+## Notes
 
-### Backend import error from root folder
-
-Run with app-dir:
-
-```powershell
-uvicorn --app-dir backend app.main:app --reload
-```
-
-## Important Backend Notes
-
-- Seed data: 50 volunteers + 15 requests
-- Matching logic implemented in backend/app/services/matching.py
-- API routes are under backend/app/routes
-
-## Production Notes (Later)
-
-- Set a strong SECRET_KEY in backend/.env
-- Restrict CORS origins
-- Set DEBUG=False
-- Use managed PostgreSQL and secure credentials
+- Seed script creates demo NGO, volunteers, and sample requests.
+- Matching logic is implemented in `backend/app/services/matching.py`.
+- Main frontend API wrapper is in `lib/api.ts`.
