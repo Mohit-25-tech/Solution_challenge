@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { useAuth } from '@/lib/auth-context';
 import { ArrowLeft } from 'lucide-react';
 
 export default function SignupPage() {
@@ -14,23 +15,31 @@ export default function SignupPage() {
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+  const { register } = useAuth();
   const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!role) return;
-    
+
+    setError('');
     setIsLoading(true);
-    
-    // Simulate signup
-    setTimeout(() => {
-      setIsLoading(false);
-      if (role === 'ngo') {
-        router.push('/coordinator/dashboard');
-      } else {
-        router.push('/volunteer/portal');
-      }
-    }, 1000);
+
+    const result = await register(name, email, password, role);
+    setIsLoading(false);
+
+    if (!result.success) {
+      setError(result.error || 'Unable to create account. Please try again.');
+      return;
+    }
+
+    if (result.user?.role === 'ngo') {
+      router.push('/coordinator/dashboard');
+      return;
+    }
+
+    router.push('/volunteer/portal');
   };
 
   return (
@@ -127,6 +136,10 @@ export default function SignupPage() {
               <Button type="submit" className="w-full" disabled={isLoading}>
                 {isLoading ? 'Creating account...' : 'Create Account'}
               </Button>
+
+              {error && (
+                <p className="text-sm text-red-600">{error}</p>
+              )}
             </form>
 
             <div className="relative">

@@ -18,9 +18,19 @@ def get_matching_volunteers(request_id: int, limit: int = 10, db: Session = Depe
     
     candidates = find_matching_volunteers(db, request, limit=limit)
     
+    if not candidates:
+        return MatchResult(
+            request_id=request_id,
+            candidates=[],
+            success=False,
+            message="No suitable volunteers found. Escalating to manual assignment."
+        )
+    
     return MatchResult(
         request_id=request_id,
-        candidates=candidates
+        candidates=candidates,
+        success=True,
+        message=f"Found {len(candidates)} matching volunteers"
     )
 
 

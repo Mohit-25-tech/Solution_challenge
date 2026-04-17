@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.db.database import engine, Base
 from app.models import User, Volunteer, Request, Assignment
-from app.routes import auth, volunteers, requests, assignments, matching, dashboard
+from app.routes import auth, volunteers, requests, assignments, matching, dashboard, volunteer_portal
 from app.core.config import settings
 import logging
 
@@ -35,6 +35,7 @@ app.include_router(volunteers.router)
 app.include_router(requests.router)
 app.include_router(assignments.router)
 app.include_router(matching.router)
+app.include_router(volunteer_portal.router)
 app.include_router(dashboard.router)
 
 

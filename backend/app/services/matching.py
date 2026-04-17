@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 from app.models import Volunteer, Request, Assignment, AssignmentStatus
-from app.schemas import MatchCandidate, MatchResult
+from app.schemas import MatchCandidate, MatchResult, MatchScoreBreakdown
 from app.utils.geo import haversine_distance, get_distance_score
 from typing import List, Tuple
 
@@ -63,6 +63,28 @@ def calculate_urgency_score(urgency: int) -> float:
     urgency is 1-5, score should be urgency/5
     """
     return urgency / 5
+
+
+def calculate_score_breakdown(volunteer: Volunteer, request: Request) -> MatchScoreBreakdown:
+    """
+    Calculate individual component scores for the match.
+    
+    Returns MatchScoreBreakdown with all individual scores.
+    """
+    skill_score = calculate_skill_score(volunteer.skills, request.type.value)
+    proximity_score, _ = calculate_proximity_score(
+        volunteer.latitude, volunteer.longitude,
+        request.latitude, request.longitude
+    )
+    urgency_score = calculate_urgency_score(request.urgency)
+    reliability_score = volunteer.reliability_score
+    
+    return MatchScoreBreakdown(
+        skill=round(skill_score, 3),
+        distance=round(proximity_score, 3),
+        urgency=round(urgency_score, 3),
+        reliability=round(reliability_score, 3)
+    )
 
 
 def calculate_match_score(volunteer: Volunteer, request: Request) -> float:
@@ -158,6 +180,7 @@ def find_matching_volunteers(db: Session, request: Request, limit: int = 10) -> 
         
         if match_score > 0:  # Only include positive matches
             reason = get_match_reason(volunteer, request, match_score, distance_km)
+            breakdown = calculate_score_breakdown(volunteer, request)
             
             candidate = MatchCandidate(
                 volunteer_id=volunteer.id,
@@ -165,7 +188,8 @@ def find_matching_volunteers(db: Session, request: Request, limit: int = 10) -> 
                 match_score=round(match_score, 3),
                 reason=reason,
                 distance_km=round(distance_km, 2),
-                volunteer=volunteer  # Include full volunteer data
+                volunteer=volunteer,  # Include full volunteer data
+                breakdown=breakdown
             )
             candidates.append(candidate)
     

@@ -1,11 +1,36 @@
 'use client';
 
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/lib/auth-context';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Users, Target, Zap, BarChart3, Heart, Globe } from 'lucide-react';
+import { Users, Target, Zap, BarChart3, Heart, Globe, Loader2 } from 'lucide-react';
 
 export default function LandingPage() {
+  const { user, loading } = useAuth();
+  const router = useRouter();
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (!loading && user) {
+      if (user.role === 'ngo') {
+        router.push('/coordinator/dashboard');
+      } else {
+        router.push('/volunteer/portal');
+      }
+    }
+  }, [user, loading, router]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       {/* Header */}
@@ -24,9 +49,6 @@ export default function LandingPage() {
               </a>
               <a href="#impact" className="text-sm text-muted-foreground hover:text-foreground transition">
                 Impact
-              </a>
-              <a href="#pricing" className="text-sm text-muted-foreground hover:text-foreground transition">
-                Pricing
               </a>
             </nav>
             <div className="flex items-center gap-3">
@@ -48,191 +70,133 @@ export default function LandingPage() {
       {/* Hero Section */}
       <section className="relative overflow-hidden py-20 sm:py-28">
         <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-secondary/5" />
-        <div className="relative mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-          <div className="grid gap-12 lg:grid-cols-2 lg:gap-8 items-center">
-            <div className="space-y-6">
-              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-balance">
-                Connect Volunteers with Impact
-              </h1>
-              <p className="text-lg text-muted-foreground leading-relaxed">
-                Intelligent matching connects skilled volunteers with critical needs. Manage missions, track impact, and build stronger communities.
-              </p>
-              <div className="flex flex-col sm:flex-row gap-3 pt-4">
-                <Link href="/signup">
-                  <Button size="lg" className="w-full sm:w-auto">
-                    Start for Free
-                  </Button>
-                </Link>
-                <Button size="lg" variant="outline" className="w-full sm:w-auto">
-                  Watch Demo
-                </Button>
-              </div>
-              <p className="text-sm text-muted-foreground">Join 500+ organizations managing 10,000+ volunteers</p>
-            </div>
-            <div className="relative h-80 sm:h-96 bg-gradient-to-br from-primary/20 to-secondary/20 rounded-2xl border border-border flex items-center justify-center">
-              <div className="text-center space-y-4">
-                <div className="flex justify-center gap-4">
-                  <div className="w-16 h-16 rounded-lg bg-primary/20 flex items-center justify-center">
-                    <Users className="w-8 h-8 text-primary" />
-                  </div>
-                  <div className="w-16 h-16 rounded-lg bg-secondary/20 flex items-center justify-center">
-                    <Target className="w-8 h-8 text-secondary" />
-                  </div>
-                </div>
-                <p className="text-sm font-medium text-muted-foreground">AI-Powered Matching</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Features Section */}
-      <section id="features" className="py-20 sm:py-28 border-t border-border">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-          <div className="space-y-12">
-            <div className="text-center space-y-4">
-              <h2 className="text-3xl sm:text-4xl font-bold">Powerful Features for Modern Volunteering</h2>
-              <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-                Everything you need to coordinate volunteers, match skills, and maximize impact
-              </p>
-            </div>
-            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {[
-                {
-                  icon: Users,
-                  title: 'Smart Matching',
-                  description: 'AI matches volunteers with perfect fit opportunities based on skills and availability',
-                },
-                {
-                  icon: BarChart3,
-                  title: 'Real-time Analytics',
-                  description: 'Track impact metrics, volunteer performance, and mission outcomes instantly',
-                },
-                {
-                  icon: Zap,
-                  title: 'Instant Coordination',
-                  description: 'Manage requests, assignments, and check-ins from a unified dashboard',
-                },
-                {
-                  icon: Target,
-                  title: 'Skill Tracking',
-                  description: 'Build volunteer profiles with specialized skills and certifications',
-                },
-                {
-                  icon: Heart,
-                  title: 'Impact Reporting',
-                  description: 'Showcase your organization&apos;s mission results to stakeholders and donors',
-                },
-                {
-                  icon: Globe,
-                  title: 'Multi-location Support',
-                  description: 'Coordinate volunteers across regions with location-aware assignments',
-                },
-              ].map((feature, idx) => (
-                <Card key={idx} className="p-6 hover:border-primary/50 transition-colors">
-                  <div className="space-y-3">
-                    <feature.icon className="w-8 h-8 text-primary" />
-                    <h3 className="font-semibold">{feature.title}</h3>
-                    <p className="text-sm text-muted-foreground">{feature.description}</p>
-                  </div>
-                </Card>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Impact Section */}
-      <section id="impact" className="py-20 sm:py-28 bg-muted/40 border-t border-border">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-          <div className="space-y-12">
-            <div className="text-center space-y-4">
-              <h2 className="text-3xl sm:text-4xl font-bold">Real Impact, Real Numbers</h2>
-              <p className="text-lg text-muted-foreground">Organizations using VolunteerMatch have transformed their operations</p>
-            </div>
-            <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
-              {[
-                { number: '10,000+', label: 'Active Volunteers' },
-                { number: '500+', label: 'Organizations' },
-                { number: '50,000+', label: 'Lives Helped' },
-                { number: '95%', label: 'Match Success Rate' },
-              ].map((stat, idx) => (
-                <Card key={idx} className="p-8 text-center bg-background">
-                  <p className="text-4xl font-bold text-primary mb-2">{stat.number}</p>
-                  <p className="text-muted-foreground">{stat.label}</p>
-                </Card>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* CTA Section */}
-      <section className="py-20 sm:py-28 border-t border-border">
-        <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
-          <div className="rounded-2xl bg-gradient-to-br from-primary/10 to-secondary/10 border border-primary/20 p-8 sm:p-12 text-center space-y-6">
-            <h2 className="text-3xl sm:text-4xl font-bold">Ready to Transform Your Volunteer Program?</h2>
+          <div className="text-center space-y-6">
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight">
+              Smart Volunteer <span className="text-primary">Coordination</span>
+            </h1>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              Join leading organizations in connecting skilled volunteers with critical needs
+              Intelligently match volunteers with disaster relief requests using our advanced matching engine. No skill mismatches. No wasted time.
             </p>
-            <div className="flex flex-col sm:flex-row gap-3 justify-center pt-4">
+            <div className="flex gap-4 justify-center flex-wrap">
               <Link href="/signup">
-                <Button size="lg">
-                  Create Free Account
+                <Button size="lg" className="gap-2">
+                  <Zap className="h-4 w-4" />
+                  Start Now
                 </Button>
               </Link>
-              <Button size="lg" variant="outline">
-                Schedule Demo
+              <Button variant="outline" size="lg">
+                View Demo
               </Button>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="border-t border-border bg-muted/40 py-8 sm:py-12">
+      {/* Impact Stats */}
+      <section id="impact" className="border-y border-border bg-card/50 py-12">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-          <div className="grid gap-8 sm:grid-cols-4 mb-8">
-            <div className="space-y-3">
-              <p className="font-semibold">Product</p>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li><a href="#" className="hover:text-foreground transition">Features</a></li>
-                <li><a href="#" className="hover:text-foreground transition">Pricing</a></li>
-                <li><a href="#" className="hover:text-foreground transition">Security</a></li>
-              </ul>
+          <div className="grid grid-cols-3 gap-8">
+            <div className="text-center">
+              <div className="text-3xl font-bold text-primary">127</div>
+              <p className="text-sm text-muted-foreground mt-2">Volunteers Coordinated</p>
             </div>
-            <div className="space-y-3">
-              <p className="font-semibold">Company</p>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li><a href="#" className="hover:text-foreground transition">About</a></li>
-                <li><a href="#" className="hover:text-foreground transition">Blog</a></li>
-                <li><a href="#" className="hover:text-foreground transition">Contact</a></li>
-              </ul>
+            <div className="text-center">
+              <div className="text-3xl font-bold text-primary">34</div>
+              <p className="text-sm text-muted-foreground mt-2">Requests Fulfilled</p>
             </div>
-            <div className="space-y-3">
-              <p className="font-semibold">Resources</p>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li><a href="#" className="hover:text-foreground transition">Docs</a></li>
-                <li><a href="#" className="hover:text-foreground transition">API</a></li>
-                <li><a href="#" className="hover:text-foreground transition">Help</a></li>
-              </ul>
-            </div>
-            <div className="space-y-3">
-              <p className="font-semibold">Legal</p>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li><a href="#" className="hover:text-foreground transition">Privacy</a></li>
-                <li><a href="#" className="hover:text-foreground transition">Terms</a></li>
-                <li><a href="#" className="hover:text-foreground transition">Cookies</a></li>
-              </ul>
+            <div className="text-center">
+              <div className="text-3xl font-bold text-primary">92%</div>
+              <p className="text-sm text-muted-foreground mt-2">Match Satisfaction</p>
             </div>
           </div>
-          <div className="border-t border-border pt-8 flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">© 2024 VolunteerMatch. All rights reserved.</p>
-            <div className="flex gap-4">
-              <a href="#" className="text-muted-foreground hover:text-foreground transition">Twitter</a>
-              <a href="#" className="text-muted-foreground hover:text-foreground transition">LinkedIn</a>
-              <a href="#" className="text-muted-foreground hover:text-foreground transition">GitHub</a>
-            </div>
+        </div>
+      </section>
+
+      {/* Features Section */}
+      <section id="features" className="py-16">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+          <h2 className="text-3xl font-bold text-center mb-12">Why VolunteerMatch?</h2>
+          <div className="grid md:grid-cols-3 gap-8">
+            {/* Feature 1 */}
+            <Card className="p-6">
+              <Zap className="h-12 w-12 text-primary mb-4" />
+              <h3 className="text-lg font-semibold mb-2">Intelligent Matching</h3>
+              <p className="text-sm text-muted-foreground">
+                Our AI engine matches volunteers by skills, proximity, urgency, and reliability. Get the right person for every task.
+              </p>
+            </Card>
+
+            {/* Feature 2 */}
+            <Card className="p-6">
+              <Globe className="h-12 w-12 text-primary mb-4" />
+              <h3 className="text-lg font-semibold mb-2">Real-Time Coordination</h3>
+              <p className="text-sm text-muted-foreground">
+                Instant matching and assignment. No waiting. No manual coordination. Just pure efficiency.
+              </p>
+            </Card>
+
+            {/* Feature 3 */}
+            <Card className="p-6">
+              <Heart className="h-12 w-12 text-primary mb-4" />
+              <h3 className="text-lg font-semibold mb-2">Reliability Tracking</h3>
+              <p className="text-sm text-muted-foreground">
+                Every volunteer's reliability score improves with completed tasks, ensuring better future matches.
+              </p>
+            </Card>
+
+            {/* Feature 4 */}
+            <Card className="p-6">
+              <Users className="h-12 w-12 text-primary mb-4" />
+              <h3 className="text-lg font-semibold mb-2">Dual Interfaces</h3>
+              <p className="text-sm text-muted-foreground">
+                Separate experiences for NGOs and Volunteers. Each interface perfectly designed for its role.
+              </p>
+            </Card>
+
+            {/* Feature 5 */}
+            <Card className="p-6">
+              <Target className="h-12 w-12 text-primary mb-4" />
+              <h3 className="text-lg font-semibold mb-2">Geographic Filtering</h3>
+              <p className="text-sm text-muted-foreground">
+                25km radius matching ensures volunteers can actually reach the task location in time.
+              </p>
+            </Card>
+
+            {/* Feature 6 */}
+            <Card className="p-6">
+              <BarChart3 className="h-12 w-12 text-primary mb-4" />
+              <h3 className="text-lg font-semibold mb-2">Advanced Analytics</h3>
+              <p className="text-sm text-muted-foreground">
+                Interactive dashboards and heatmaps show resource allocation and impact in real-time.
+              </p>
+            </Card>
+          </div>
+        </div>
+      </section>
+
+      {/* CTA Section */}
+      <section className="border-t border-border bg-card py-12">
+        <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 text-center space-y-6">
+          <h2 className="text-2xl font-bold">Ready to Transform Volunteer Coordination?</h2>
+          <p className="text-muted-foreground">
+            Join hundreds of NGOs and volunteers using VolunteerMatch for smarter resource allocation.
+          </p>
+          <div className="flex gap-4 justify-center">
+            <Link href="/signup">
+              <Button size="lg">
+                Start For Free
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="border-t border-border bg-muted/30 py-8">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+          <div className="text-center text-sm text-muted-foreground">
+            <p>&copy; 2026 VolunteerMatch. Built for impact.</p>
           </div>
         </div>
       </footer>

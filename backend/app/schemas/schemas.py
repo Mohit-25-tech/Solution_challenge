@@ -163,6 +163,14 @@ class AssignmentDetailResponse(AssignmentResponse):
 
 
 # ====== Matching Schemas ======
+class MatchScoreBreakdown(BaseModel):
+    """Breakdown of how match score is calculated."""
+    skill: float
+    distance: float
+    urgency: float
+    reliability: float
+
+
 class MatchCandidate(BaseModel):
     volunteer_id: int
     volunteer_name: str
@@ -170,11 +178,17 @@ class MatchCandidate(BaseModel):
     reason: str
     distance_km: float
     volunteer: VolunteerResponse
+    request_id: Optional[int] = None
+    assignment_id: Optional[int] = None
+    assignment_status: Optional[AssignmentStatus] = None
+    breakdown: Optional[MatchScoreBreakdown] = None
 
 
 class MatchResult(BaseModel):
     request_id: int
     candidates: List[MatchCandidate]
+    success: bool = True
+    message: Optional[str] = None
 
 
 class AutoAssignResult(BaseModel):

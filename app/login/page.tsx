@@ -6,28 +6,36 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { useAuth } from '@/lib/auth-context';
 import { ArrowLeft } from 'lucide-react';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+  const { login } = useAuth();
   const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
     setIsLoading(true);
-    
-    // Simulate login - in real app would validate credentials
-    setTimeout(() => {
-      setIsLoading(false);
-      // Route based on email domain for demo purposes
-      if (email.includes('ngo') || email.includes('org')) {
-        router.push('/coordinator/dashboard');
-      } else {
-        router.push('/volunteer/portal');
-      }
-    }, 1000);
+
+    const result = await login(email, password);
+    setIsLoading(false);
+
+    if (!result.success) {
+      setError(result.error || 'Unable to sign in. Please check your credentials.');
+      return;
+    }
+
+    if (result.user?.role === 'ngo') {
+      router.push('/coordinator/dashboard');
+      return;
+    }
+
+    router.push('/volunteer/portal');
   };
 
   return (
@@ -76,6 +84,10 @@ export default function LoginPage() {
             <Button type="submit" className="w-full" disabled={isLoading}>
               {isLoading ? 'Signing in...' : 'Sign In'}
             </Button>
+
+            {error && (
+              <p className="text-sm text-red-600">{error}</p>
+            )}
           </form>
 
           <div className="relative">
