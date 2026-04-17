@@ -46,7 +46,6 @@ class User(Base):
     # Relationships
     volunteer = relationship("Volunteer", back_populates="user", uselist=False)
     requests = relationship("Request", back_populates="created_by_user")
-    assignments = relationship("Assignment", back_populates="volunteer_user")
 
 
 class Volunteer(Base):
@@ -109,4 +108,3 @@ class Assignment(Base):
     # Relationships
     request = relationship("Request", back_populates="assignments")
     volunteer = relationship("Volunteer", back_populates="assignments")
-    volunteer_user = relationship("User", foreign_keys=[volunteer_id], overlaps="volunteer,assignments")

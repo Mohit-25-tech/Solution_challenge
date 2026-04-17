@@ -4,7 +4,7 @@ from typing import Optional
 
 class Settings(BaseSettings):
     # Database
-    database_url: str = "postgresql://volunteer_user:volunteer_pass@localhost:5432/volunteer_db"
+    database_url: str = "postgresql+psycopg://volunteer_user:volunteer_pass@localhost:5432/volunteer_db"
     
     # JWT
     secret_key: str = "your-secret-key-change-in-production"

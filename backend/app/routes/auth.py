@@ -1,23 +1,22 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
-from passlib.context import CryptContext
 from jose import JWTError, jwt
+import bcrypt
 from app.db.database import get_db
 from app.models import User, UserRole
 from app.schemas import UserRegister, UserLogin, UserResponse, TokenResponse
 from app.core.config import settings
 
 router = APIRouter(prefix="/auth", tags=["auth"])
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 def get_password_hash(password: str) -> str:
-    return pwd_context.hash(password)
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+    return bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password.encode("utf-8"))
 
 
 def create_access_token(data: dict, expires_delta: timedelta = None) -> str:

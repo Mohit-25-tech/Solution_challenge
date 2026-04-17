@@ -21,17 +21,13 @@ if %errorlevel% neq 0 (
 echo 📦 Creating database and user...
 echo.
 
-REM Create database and user
-psql -U postgres -h localhost <<EOF
-CREATE DATABASE volunteer_db;
-CREATE USER volunteer_user WITH PASSWORD 'volunteer_pass';
-ALTER ROLE volunteer_user SET client_encoding TO 'utf8';
-ALTER ROLE volunteer_user SET default_transaction_isolation TO 'read committed';
-ALTER ROLE volunteer_user SET default_transaction_level TO 2;
-GRANT ALL PRIVILEGES ON DATABASE volunteer_db TO volunteer_user;
-GRANT USAGE ON SCHEMA public TO volunteer_user;
-GRANT CREATE ON SCHEMA public TO volunteer_user;
-EOF
+set "PSQL=C:\Program Files\PostgreSQL\18\bin\psql.exe"
+if not exist "%PSQL%" set "PSQL=psql"
+
+REM Create user and database (safe to re-run)
+"%PSQL%" -U postgres -h localhost -d postgres -c "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='volunteer_user') THEN CREATE ROLE volunteer_user LOGIN PASSWORD 'volunteer_pass'; END IF; END $$;"
+"%PSQL%" -U postgres -h localhost -d postgres -c "SELECT 'CREATE DATABASE volunteer_db OWNER volunteer_user' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'volunteer_db')\gexec"
+"%PSQL%" -U postgres -h localhost -d volunteer_db -c "GRANT ALL PRIVILEGES ON SCHEMA public TO volunteer_user;"
 
 echo.
 echo ✅ Database setup complete!
