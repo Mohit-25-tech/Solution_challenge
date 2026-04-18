@@ -1,6 +1,7 @@
 "use client"
 import { useEffect, useState, useCallback } from "react"
 import { requestAPI, matchingAPI } from "@/lib/api"
+import { useAuth } from "@/lib/auth-context"
 import { PageSkeleton, ErrorState } from "@/components/page-skeleton"
 
 const REQUEST_TYPES = ["all", "medical", "food", "rescue", "construction", "logistics", "counseling"]
@@ -38,6 +39,7 @@ type Request = {
 const LIMIT = 20
 
 export default function CoordinatorRequestsPage() {
+  const { user } = useAuth()
   const [requests, setRequests] = useState<Request[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -47,12 +49,26 @@ export default function CoordinatorRequestsPage() {
   const [urgencyFilter, setUrgencyFilter] = useState<number | undefined>()
   const [page, setPage] = useState(0)
   const [assigning, setAssigning] = useState<number | null>(null)
+  
+  // New States for Custom Match Modal
+  const [showMatchModal, setShowMatchModal] = useState(false)
+  const [activeRequestId, setActiveRequestId] = useState<number | null>(null)
+  const [matchCandidates, setMatchCandidates] = useState<any[]>([])
+  const [loadingMatches, setLoadingMatches] = useState(false)
+
+  const [showCreate, setShowCreate] = useState(false)
+  const [createData, setCreateData] = useState({
+    title: "", type: "medical", description: "", urgency: 3, volunteers_needed: 1, latitude: 28.6139, longitude: 77.2090
+  })
+  const [creating, setCreating] = useState(false)
 
   const fetchRequests = useCallback(async () => {
+    if (!user?.id) return;
     setLoading(true)
     setError(null)
     try {
       const data = await requestAPI.getAll({
+        user_id: user.id,
         status: statusFilter === "all" ? undefined : statusFilter,
         type: typeFilter === "all" ? undefined : typeFilter,
         urgency: urgencyFilter,
@@ -66,19 +82,61 @@ export default function CoordinatorRequestsPage() {
     } finally {
       setLoading(false)
     }
-  }, [statusFilter, typeFilter, urgencyFilter, page])
+  }, [user?.id, statusFilter, typeFilter, urgencyFilter, page])
 
   useEffect(() => {
     fetchRequests()
   }, [fetchRequests])
 
-  const handleAssignBest = async (requestId: number) => {
-    setAssigning(requestId)
+  const handleCreateRequest = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!user?.id) return
+    setCreating(true)
     try {
-      await matchingAPI.assignBest(requestId)
-      // Optimistically update status
+      const newReq: any = await requestAPI.create(user.id, {
+        ...createData,
+        source: "internal"
+      })
+      // Immediately auto assign to top volunteers
+      await matchingAPI.assignBest(newReq.id).catch(() => {})
+      setShowCreate(false)
+      fetchRequests()
+    } catch (err: unknown) {
+      alert((err as Error).message || "Failed to create request")
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  const handleFindMatches = async (requestId: number) => {
+    setActiveRequestId(requestId)
+    setShowMatchModal(true)
+    setLoadingMatches(true)
+    setMatchCandidates([])
+    try {
+      // Top 3 volunteers as requested
+      const result = await matchingAPI.getMatches(requestId, 3) 
+      if (result.success && result.candidates) {
+        setMatchCandidates(result.candidates)
+      } else {
+        alert(result.message || "No matches found")
+      }
+    } catch (e: unknown) {
+      alert((e as Error).message || "Failed to find matches")
+    } finally {
+      setLoadingMatches(false)
+    }
+  }
+
+  const handleManualAssign = async (volunteerId: number, matchScore: number) => {
+    if (!activeRequestId) return
+    setAssigning(volunteerId)
+    try {
+      await matchingAPI.manualAssign(activeRequestId, volunteerId, matchScore)
+      setShowMatchModal(false)
+      // Optimistic update
       setRequests(prev =>
-        prev.map(r => r.id === requestId ? { ...r, status: "assigned" } : r)
+        prev.map(r => r.id === activeRequestId ? { ...r, status: "assigned" } : r)
       )
     } catch (e: unknown) {
       alert((e as Error).message || "Failed to assign volunteer")
@@ -106,9 +164,103 @@ export default function CoordinatorRequestsPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-xl font-semibold text-gray-900">Requests</h1>
-          <p className="text-sm text-gray-500 mt-0.5">{total} total</p>
+          <p className="text-sm text-gray-500 mt-0.5">{total} total requests</p>
         </div>
+        <button
+          onClick={() => setShowCreate(true)}
+          className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700"
+        >
+          + Create Request
+        </button>
       </div>
+
+      {/* Create Modal */}
+      {showCreate && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl p-6 max-w-md w-full">
+            <h2 className="text-lg font-bold mb-4">Create New Request</h2>
+            <form onSubmit={handleCreateRequest} className="space-y-3">
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">Title</label>
+                <input required type="text" className="w-full border rounded-lg p-2 text-sm" value={createData.title} onChange={e => setCreateData(prev => ({...prev, title: e.target.value}))} placeholder="E.g. Flood Relief Needed" />
+              </div>
+              <div className="flex gap-3">
+                <div className="flex-1">
+                  <label className="text-xs text-gray-500 block mb-1">Type</label>
+                  <select className="w-full border rounded-lg p-2 text-sm" value={createData.type} onChange={e => setCreateData(prev => ({...prev, type: e.target.value}))}>
+                    {REQUEST_TYPES.filter(t => t !== "all").map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div className="flex-1">
+                  <label className="text-xs text-gray-500 block mb-1">Volunteers Needed</label>
+                  <input required type="number" min="1" className="w-full border rounded-lg p-2 text-sm" value={createData.volunteers_needed} onChange={e => setCreateData(prev => ({...prev, volunteers_needed: Number(e.target.value)}))} />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">Description</label>
+                <textarea required className="w-full border rounded-lg p-2 text-sm" rows={2} value={createData.description} onChange={e => setCreateData(prev => ({...prev, description: e.target.value}))} />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">Urgency (1-5)</label>
+                <input type="range" min="1" max="5" className="w-full" value={createData.urgency} onChange={e => setCreateData(prev => ({...prev, urgency: Number(e.target.value)}))} />
+              </div>
+              <div className="flex gap-3 pt-3">
+                <button type="button" onClick={() => setShowCreate(false)} className="flex-1 border p-2 rounded-lg text-sm font-medium hover:bg-gray-50">Cancel</button>
+                <button type="submit" disabled={creating} className="flex-1 bg-blue-600 text-white p-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">{creating ? "Creating..." : "Create & Auto-Assign"}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+
+
+      {/* Match/Assign Modal */}
+      {showMatchModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl p-6 max-w-xl w-full max-h-[80vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-bold">Top 3 Matching Volunteers</h2>
+              <button onClick={() => setShowMatchModal(false)} className="text-gray-400 hover:text-red-500">✕</button>
+            </div>
+            
+            {loadingMatches ? (
+              <div className="space-y-3">
+                <PageSkeleton rows={3} />
+              </div>
+            ) : matchCandidates.length === 0 ? (
+              <div className="text-center py-6 text-gray-500 text-sm">
+                No active volunteers match this request right now.
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {matchCandidates.map((candidate) => (
+                  <div key={candidate.volunteer_id} className="border rounded-lg p-4 flex justify-between items-center gap-3 bg-gray-50/50">
+                    <div>
+                      <div className="font-semibold text-sm">{candidate.volunteer_name}</div>
+                      <div className="text-xs text-gray-500 mt-1">{candidate.reason}</div>
+                      <div className="flex gap-3 text-[11px] text-gray-400 mt-2">
+                        <span>Score: {(candidate.match_score * 100).toFixed(0)}%</span>
+                        <span>Distance: {candidate.distance_km}km</span>
+                        {candidate.breakdown?.reliability !== undefined && (
+                          <span>Reliability: {(candidate.breakdown.reliability * 100).toFixed(0)}%</span>
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      disabled={assigning === candidate.volunteer_id}
+                      onClick={() => handleManualAssign(candidate.volunteer_id, candidate.match_score)}
+                      className="text-xs bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 flex-shrink-0 font-medium"
+                    >
+                      {assigning === candidate.volunteer_id ? "Assigning..." : "Assign Worker"}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex flex-wrap gap-3 mb-6">
@@ -203,11 +355,10 @@ export default function CoordinatorRequestsPage() {
                 <div className="flex gap-2 flex-shrink-0">
                   {req.status === "pending" && (
                     <button
-                      onClick={() => handleAssignBest(req.id)}
-                      disabled={assigning === req.id}
-                      className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 disabled:opacity-60 font-medium transition-colors"
+                      onClick={() => handleFindMatches(req.id)}
+                      className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 font-medium transition-colors"
                     >
-                      {assigning === req.id ? "Assigning..." : "Assign Best"}
+                      Find Best Matches
                     </button>
                   )}
                   {req.status !== "completed" && req.status !== "cancelled" && (

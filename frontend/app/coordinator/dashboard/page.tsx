@@ -43,13 +43,14 @@ export default function CoordinatorDashboard() {
   // Load dashboard stats
   useEffect(() => {
     const loadData = async () => {
+      if (!user?.id) return;
       try {
-        const statsResult = await dashboardAPI.getStats()
+        const statsResult = await dashboardAPI.getStats(user.id)
         if (statsResult) {
           setStats(statsResult as DashboardStats)
         }
 
-        const requestsResult = await requestAPI.getAll({ offset: 0, limit: 100 })
+        const requestsResult = await requestAPI.getAll({ user_id: user.id, offset: 0, limit: 100 })
         if (requestsResult.items) {
           setRequests((requestsResult.items as any[]) || [])
         }

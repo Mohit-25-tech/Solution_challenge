@@ -85,6 +85,7 @@ export const requestAPI = {
     }),
 
   getAll: (params?: {
+    user_id?: number
     status?: string
     type?: string
     urgency?: number
@@ -92,6 +93,7 @@ export const requestAPI = {
     offset?: number
   }) => {
     const q = new URLSearchParams()
+    if (params?.user_id) q.set("user_id", String(params.user_id))
     if (params?.status) q.set("status", params.status)
     if (params?.type) q.set("type", params.type)
     if (params?.urgency) q.set("urgency", String(params.urgency))
@@ -147,11 +149,14 @@ export const matchingAPI = {
 
   assignBest: (requestId: number) =>
     apiFetch(`/match/assign/${requestId}`, { method: "POST" }),
+
+  manualAssign: (requestId: number, volunteerId: number, matchScore: number = 1.0) =>
+    apiFetch(`/match/assign/${requestId}/${volunteerId}?match_score=${matchScore}`, { method: "POST" }),
 }
 
 // ── Dashboard ─────────────────────────────────────────────────────
 export const dashboardAPI = {
-  getStats: () => apiFetch(`/dashboard/stats`),
+  getStats: (userId?: number) => apiFetch(`/dashboard/stats${userId ? `?user_id=${userId}` : ""}`),
   getHeatmap: () => apiFetch(`/dashboard/heatmap`),
 }
 

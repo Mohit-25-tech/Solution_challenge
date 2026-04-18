@@ -10,6 +10,7 @@ router = APIRouter(prefix="/requests", tags=["requests"])
 
 @router.get("")
 def get_requests(
+    user_id: Optional[int] = None,
     status: Optional[str] = None,
     type: Optional[str] = None,
     urgency: Optional[int] = None,
@@ -22,6 +23,9 @@ def get_requests(
     Returns {total, items} shape (consistent with GET /volunteers).
     """
     query = db.query(Request)
+
+    if user_id:
+        query = query.filter(Request.created_by == user_id)
 
     if status and status != "all":
         query = query.filter(Request.status == status)

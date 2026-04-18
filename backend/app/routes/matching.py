@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.db.database import get_db
-from app.models.models import Request, Assignment
+from app.models.models import Request, Assignment, Volunteer, User
 from app.schemas import MatchResult, AutoAssignResult
 from app.services.matching import find_matching_volunteers, find_best_volunteer
 from app.services.notifications import create_notification
@@ -100,4 +100,54 @@ def auto_assign_volunteer(request_id: int, db: Session = Depends(get_db)):
         "volunteer_id": assignment.volunteer_id,
         "match_score": assignment.match_score,
         "message": f"Successfully assigned {best_candidate.volunteer_name} (score: {best_candidate.match_score:.3f})"
+    }
+
+
+@router.post("/assign/{request_id}/{volunteer_id}")
+def manual_assign_volunteer(request_id: int, volunteer_id: int, match_score: float = 1.0, db: Session = Depends(get_db)):
+    """Manually assign a specific volunteer to a request."""
+    request = db.query(Request).filter(Request.id == request_id).first()
+    if not request:
+        return {"success": False, "message": "Request not found"}
+
+    volunteer = db.query(Volunteer).filter(Volunteer.id == volunteer_id).first()
+    if not volunteer:
+        return {"success": False, "message": "Volunteer not found"}
+
+    # Check if already assigned
+    existing = db.query(Assignment).filter(
+        Assignment.request_id == request_id, 
+        Assignment.volunteer_id == volunteer_id
+    ).first()
+    
+    if existing:
+        return {"success": False, "message": "Volunteer is already assigned to this request"}
+
+    assignment = Assignment(
+        request_id=request_id,
+        volunteer_id=volunteer_id,
+        match_score=match_score,
+        status="assigned"
+    )
+    db.add(assignment)
+    db.commit()
+    db.refresh(assignment)
+
+    try:
+        vol_user = db.query(User).filter(User.id == volunteer.user_id).first()
+        create_notification(
+            db=db,
+            user_id=volunteer.user_id,
+            title="⚡ Manual Assignment",
+            message=f"You've been specifically assigned to '{request.title}' by the coordinator. Please accept within 15 minutes.",
+            notif_type="assigned",
+            reference_id=assignment.id
+        )
+    except Exception:
+        pass
+
+    return {
+        "success": True,
+        "assignment_id": assignment.id,
+        "message": f"Successfully assigned volunteer #{volunteer_id}"
     }

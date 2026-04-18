@@ -1,6 +1,6 @@
 "use client"
 import { useEffect, useState, useCallback } from "react"
-import { volunteerPortalAPI } from "@/lib/api"
+import { volunteerPortalAPI, matchingAPI, assignmentAPI } from "@/lib/api"
 import { useAuth } from "@/lib/auth-context"
 import { PageSkeleton, ErrorState } from "@/components/page-skeleton"
 
@@ -38,11 +38,15 @@ export default function VolunteerAvailablePage() {
   const [error, setError] = useState<string | null>(null)
   const [lat, setLat] = useState(28.6139)    // Default: New Delhi
   const [lng, setLng] = useState(77.209)
+  const [applying, setApplying] = useState<number | null>(null)
 
   const volunteerId = user?.volunteer_id
 
   const fetchNearby = useCallback(async () => {
-    if (!volunteerId) return
+    if (!volunteerId) {
+      setLoading(false)
+      return
+    }
     setLoading(true)
     setError(null)
     try {
@@ -72,11 +76,39 @@ export default function VolunteerAvailablePage() {
 
   useEffect(() => { fetchNearby() }, [fetchNearby])
 
+  const handleApply = async (requestId: number, matchScore: number) => {
+    if (!volunteerId) return;
+    setApplying(requestId)
+    try {
+      // 1. Assign self to the task
+      const assignRes: any = await matchingAPI.manualAssign(requestId, volunteerId, matchScore);
+      if (assignRes.assignment_id) {
+        // 2. Auto-accept since it was a proactive claim
+        await assignmentAPI.accept(assignRes.assignment_id);
+        alert("Task successfully claimed! Moving you to My Tasks...");
+        fetchNearby() // refresh list to remove the claimed one
+      } else {
+        alert(assignRes.message || "Could not claim task")
+      }
+    } catch (e: unknown) {
+      alert((e as Error).message || "Failed to claim task")
+    } finally {
+      setApplying(null)
+    }
+  }
+
   if (!volunteerId && !loading) {
     return (
-      <div className="p-6 text-center py-20 text-gray-400 text-sm">
+      <div className="p-6 text-center py-20 bg-white border border-gray-100 rounded-xl m-6 shadow-sm">
         <p className="text-2xl mb-2">👤</p>
-        No volunteer profile found. Please complete your profile first.
+        <p className="text-gray-900 font-medium text-lg">No volunteer profile found.</p>
+        <p className="text-sm text-gray-500 mt-1 mb-4">You need to complete your profile before you can see available work.</p>
+        <a 
+          href="/volunteer/profile" 
+          className="inline-block bg-blue-600 text-white px-5 py-2 rounded-lg font-medium text-sm hover:bg-blue-700 transition"
+        >
+          Create Profile
+        </a>
       </div>
     )
   }
@@ -155,10 +187,20 @@ export default function VolunteerAvailablePage() {
                   <p className="text-xs text-gray-500 mb-2 line-clamp-2">{req.description}</p>
                 )}
 
-                {/* Meta row */}
-                <div className="flex items-center gap-3 text-[11px] text-gray-400">
-                  <span>📍 {task.distance_km}km away</span>
-                  <span className="truncate">{task.reason}</span>
+                {/* Meta row & Action */}
+                <div className="flex items-center justify-between mt-3">
+                  <div className="flex items-center gap-3 text-[11px] text-gray-400">
+                    <span>📍 {task.distance_km}km away</span>
+                    <span className="truncate max-w-[200px]">{task.reason}</span>
+                  </div>
+                  
+                  <button
+                    onClick={() => handleApply(req?.id ?? 0, task.match_score)}
+                    disabled={applying === req?.id}
+                    className="text-xs bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                  >
+                    {applying === req?.id ? "Claiming..." : "Claim Task"}
+                  </button>
                 </div>
               </div>
             )

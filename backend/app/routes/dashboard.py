@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends
+from typing import Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from app.db.database import get_db
@@ -9,7 +10,7 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 
 @router.get("/stats")
-def get_dashboard_stats(db: Session = Depends(get_db)):
+def get_dashboard_stats(user_id: Optional[int] = None, db: Session = Depends(get_db)):
     """
     Dashboard statistics.
     Improvement 2: added active_assignments_now + volunteers_on_ground + completed_requests
@@ -17,33 +18,43 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
     """
     total_volunteers = db.query(func.count(Volunteer.id)).scalar() or 0
 
-    active_requests = db.query(func.count(Request.id)).filter(
+    # Base query for Requests filtered by user_id
+    req_query = db.query(Request)
+    if user_id:
+        req_query = req_query.filter(Request.created_by == user_id)
+        
+    # Base query for Assignments joined with Request
+    assign_query = db.query(Assignment)
+    if user_id:
+        assign_query = assign_query.join(Request).filter(Request.created_by == user_id)
+
+    active_requests = req_query.filter(
         Request.status.in_(["pending", "assigned"])
-    ).scalar() or 0
+    ).count() or 0
 
-    completed_tasks = db.query(func.count(Assignment.id)).filter(
+    completed_tasks = assign_query.filter(
         Assignment.status == "completed"
-    ).scalar() or 0
+    ).count() or 0
 
-    completed_requests = db.query(func.count(Request.id)).filter(
+    completed_requests = req_query.filter(
         Request.status == "completed"
-    ).scalar() or 0
+    ).count() or 0
 
-    total_assignments = db.query(func.count(Assignment.id)).scalar() or 0
+    total_assignments = assign_query.count() or 0
 
-    pending_assignments = db.query(func.count(Assignment.id)).filter(
+    pending_assignments = assign_query.filter(
         Assignment.status == "assigned"
-    ).scalar() or 0
+    ).count() or 0
 
     # Active assignments now = assigned (not yet accepted or completed)
-    active_assignments_now = db.query(func.count(Assignment.id)).filter(
+    active_assignments_now = assign_query.filter(
         Assignment.status == "assigned"
-    ).scalar() or 0
+    ).count() or 0
 
     # Volunteers on ground = those with an accepted (in-progress) assignment
-    volunteers_on_ground = db.query(func.count(Assignment.id)).filter(
+    volunteers_on_ground = assign_query.filter(
         Assignment.status == "accepted"
-    ).scalar() or 0
+    ).count() or 0
 
     avg_reliability = db.query(func.avg(Volunteer.reliability_score)).scalar() or 0.0
 

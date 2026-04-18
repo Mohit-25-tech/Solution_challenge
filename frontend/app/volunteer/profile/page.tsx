@@ -42,7 +42,7 @@ const STATUS_COLORS: Record<string, string> = {
 }
 
 export default function VolunteerProfilePage() {
-  const { user } = useAuth()
+  const { user, updateSessionUser } = useAuth()
   const [volunteer, setVolunteer] = useState<VolunteerData | null>(null)
   const [stats, setStats] = useState<Stats | null>(null)
   const [history, setHistory] = useState<HistoryItem[]>([])
@@ -51,6 +51,14 @@ export default function VolunteerProfilePage() {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [activeTab, setActiveTab] = useState<"profile" | "history">("profile")
+
+  // For Profile Onboarding
+  const [creatingProfile, setCreatingProfile] = useState(false)
+  const [onboardData, setOnboardData] = useState({
+    bio: "",
+    phone: "",
+    skills: "medical, logistics"
+  })
 
   const load = useCallback(async () => {
     const volunteerId = user?.volunteer_id
@@ -99,11 +107,83 @@ export default function VolunteerProfilePage() {
     }
   }
 
+  const handleCreateProfile = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!user?.id) return
+    setCreatingProfile(true)
+    try {
+      // Create volunteer record
+      const skillsArray = onboardData.skills.split(",").map(s => s.trim().toLowerCase()).filter(s => s)
+      const res: any = await volunteerAPI.create(user.id, {
+        bio: onboardData.bio,
+        phone: onboardData.phone,
+        skills: skillsArray,
+        is_available: true,
+        latitude: 28.6139,
+        longitude: 77.2090
+      })
+      // Instantly inject ID into Next.js auth system
+      if (res.id) {
+        updateSessionUser({ ...user, volunteer_id: res.id })
+      }
+    } catch (e: unknown) {
+      alert((e as Error).message || "Failed to create profile")
+    } finally {
+      setCreatingProfile(false)
+    }
+  }
+
   if (!user?.volunteer_id && !loading) {
     return (
-      <div className="p-6 text-center py-20">
-        <p className="text-gray-400 text-sm">No volunteer profile linked to your account.</p>
-        <p className="text-xs text-gray-300 mt-1">Please contact support or create a volunteer profile.</p>
+      <div className="p-6 max-w-md mx-auto mt-10 bg-white border border-gray-200 rounded-xl shadow-sm">
+        <div className="text-center mb-6">
+          <p className="text-3xl mb-3">👋</p>
+          <h2 className="text-lg font-bold text-gray-900">Welcome to VolunteerMatch</h2>
+          <p className="text-sm text-gray-500 mt-1">Let's set up your profile so NGOs can find you.</p>
+        </div>
+
+        <form onSubmit={handleCreateProfile} className="space-y-4">
+          <div>
+            <label className="text-xs font-medium text-gray-700 block mb-1">Phone Number</label>
+            <input 
+              type="text" 
+              required 
+              className="w-full border border-gray-200 rounded-lg p-2.5 text-sm" 
+              placeholder="+1 234 567 8900"
+              value={onboardData.phone}
+              onChange={e => setOnboardData({...onboardData, phone: e.target.value})}
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-gray-700 block mb-1">Primary Skills (comma separated)</label>
+            <input 
+              type="text" 
+              required 
+              className="w-full border border-gray-200 rounded-lg p-2.5 text-sm" 
+              placeholder="medical, rescue, cooking..."
+              value={onboardData.skills}
+              onChange={e => setOnboardData({...onboardData, skills: e.target.value})}
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-gray-700 block mb-1">Short Bio</label>
+            <textarea 
+              rows={3}
+              className="w-full border border-gray-200 rounded-lg p-2.5 text-sm" 
+              placeholder="Tell us a little about your experience..."
+              value={onboardData.bio}
+              onChange={e => setOnboardData({...onboardData, bio: e.target.value})}
+            />
+          </div>
+
+          <button 
+            type="submit" 
+            disabled={creatingProfile}
+            className="w-full bg-blue-600 text-white font-medium text-sm py-2.5 rounded-lg hover:bg-blue-700 disabled:opacity-50 mt-4"
+          >
+            {creatingProfile ? "Creating..." : "Create My Profile"}
+          </button>
+        </form>
       </div>
     )
   }

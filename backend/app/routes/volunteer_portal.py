@@ -37,12 +37,12 @@ def get_recommended_task(volunteer_id: int, db: Session = Depends(get_db)):
 
     for request in active_requests:
         # Skip if already accepted by this volunteer for this request
-        existing_accepted = db.query(Assignment).filter(
+        existing_assignment = db.query(Assignment).filter(
             Assignment.request_id == request.id,
             Assignment.volunteer_id == volunteer.id,
-            Assignment.status == "accepted"
+            Assignment.status.in_(["assigned", "accepted", "completed"])
         ).first()
-        if existing_accepted:
+        if existing_assignment:
             continue
 
         proximity_score, distance_km = calculate_proximity_score(
@@ -108,12 +108,12 @@ def get_nearby_tasks(
 
     candidates = []
     for request in active_requests:
-        existing_accepted = db.query(Assignment).filter(
+        existing_assignment = db.query(Assignment).filter(
             Assignment.request_id == request.id,
             Assignment.volunteer_id == volunteer.id,
-            Assignment.status == "accepted"
+            Assignment.status.in_(["assigned", "accepted", "completed"])
         ).first()
-        if existing_accepted:
+        if existing_assignment:
             continue
 
         proximity_score, distance_km = calculate_proximity_score(

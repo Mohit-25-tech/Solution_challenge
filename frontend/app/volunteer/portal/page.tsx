@@ -56,7 +56,10 @@ export default function VolunteerPortalPage() {
   const volunteerId = user?.volunteer_id
 
   const fetchTasks = useCallback(async () => {
-    if (!volunteerId) return
+    if (!volunteerId) {
+      setLoading(false)
+      return
+    }
     setLoading(true)
     setError(null)
     try {
@@ -103,12 +106,34 @@ export default function VolunteerPortalPage() {
     }
   }
 
+  const handleComplete = async (assignmentId: number) => {
+    if (!confirm("Are you sure you want to mark this task as completed?")) return
+    setActionLoading(assignmentId)
+    try {
+      await assignmentAPI.complete(assignmentId)
+      setTasks(prev => prev.map(t =>
+        t.assignment_id === assignmentId ? { ...t, assignment_status: "completed" } : t
+      ))
+      alert("🎉 Task Marked as Completed! Check your Analytics and Badges!")
+    } catch (e: unknown) {
+      alert((e as Error).message)
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
   if (!volunteerId && !loading) {
     return (
-      <div className="p-6 text-center py-20">
+      <div className="p-6 text-center py-20 bg-white border border-gray-100 rounded-xl m-6 shadow-sm">
         <p className="text-2xl mb-2">🔗</p>
-        <p className="text-gray-400 text-sm">No volunteer profile found.</p>
-        <p className="text-xs text-gray-300 mt-1">Please set up your volunteer profile first.</p>
+        <p className="text-gray-900 font-medium text-lg">No volunteer profile found.</p>
+        <p className="text-sm text-gray-500 mt-1 mb-4">You need to set up your profile before receiving tasks.</p>
+        <a 
+          href="/volunteer/profile" 
+          className="inline-block bg-blue-600 text-white px-5 py-2 rounded-lg font-medium text-sm hover:bg-blue-700 transition"
+        >
+          Create Profile
+        </a>
       </div>
     )
   }
@@ -191,15 +216,24 @@ export default function VolunteerPortalPage() {
 
                 {/* QR code section (accepted tasks) */}
                 {task.assignment_status === "accepted" && (
-                  <div className="mb-3">
-                    <button
-                      onClick={() => setShowQR(showQR === task.assignment_id ? null : task.assignment_id)}
-                      className="text-xs text-blue-600 hover:underline"
-                    >
-                      {showQR === task.assignment_id ? "Hide QR Code" : "Show QR code for check-in"}
-                    </button>
+                  <div className="mb-3 border-t pt-3 mt-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <button
+                        onClick={() => setShowQR(showQR === task.assignment_id ? null : task.assignment_id)}
+                        className="text-xs text-blue-600 hover:underline font-medium"
+                      >
+                        {showQR === task.assignment_id ? "Hide QR Code" : "Show QR code for check-in"}
+                      </button>
+                      <button
+                        disabled={actionLoading === task.assignment_id}
+                        onClick={() => handleComplete(task.assignment_id)}
+                        className="text-xs bg-green-50 text-green-700 border border-green-200 px-3 py-1.5 rounded-lg hover:bg-green-100 disabled:opacity-50 font-medium"
+                      >
+                        {actionLoading === task.assignment_id ? "..." : "✓ Mark as Completed"}
+                      </button>
+                    </div>
                     {showQR === task.assignment_id && (
-                      <div className="mt-3">
+                      <div className="mt-3 bg-gray-50 p-4 rounded-xl border">
                         <QRGenerator assignmentId={task.assignment_id} />
                       </div>
                     )}
