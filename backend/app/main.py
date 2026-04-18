@@ -1,60 +1,84 @@
+import asyncio
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from apscheduler.schedulers.background import BackgroundScheduler
+
 from app.db.database import engine, Base
-from app.models import User, Volunteer, Request, Assignment
-from app.routes import auth, volunteers, requests, assignments, matching, dashboard, volunteer_portal
-from app.core.config import settings
-import logging
+from app.models import models  # Ensures all models are registered with Base
+from app.routes import auth, volunteers, requests, assignments, matching
+from app.routes import dashboard, volunteer_portal
+from app.routes import analytics, notifications, external
+from app.services.auto_reassign import auto_reassign_expired
 
-# Setup logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# APScheduler — runs sync jobs in a thread pool
+scheduler = BackgroundScheduler()
 
-# Create database tables
-Base.metadata.create_all(bind=engine)
 
-# Create FastAPI app
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Startup + shutdown lifecycle handler."""
+    # Create all tables (safe to call multiple times — only creates missing tables)
+    Base.metadata.create_all(bind=engine)
+
+    # SAFETY GUARD: auto_reassign_expired must be a plain sync function
+    assert not asyncio.iscoroutinefunction(auto_reassign_expired), (
+        "auto_reassign_expired must be 'def', not 'async def'. "
+        "APScheduler BackgroundScheduler runs sync jobs in threads."
+    )
+
+    # Schedule auto-reassignment job every 5 minutes
+    scheduler.add_job(
+        auto_reassign_expired,
+        "interval",
+        minutes=5,
+        id="auto_reassign",
+        replace_existing=True
+    )
+    scheduler.start()
+    print("[scheduler] auto_reassign_expired scheduled every 5 minutes")
+
+    yield  # App is running
+
+    # Shutdown
+    scheduler.shutdown(wait=False)
+    print("[scheduler] Shutdown complete")
+
+
 app = FastAPI(
-    title=settings.api_title,
-    version=settings.api_version,
-    description="Smart Volunteer Coordination Backend"
+    title="VolunteerMatch API",
+    version="2.0.0",
+    description="Intelligent volunteer coordination platform",
+    lifespan=lifespan
 )
 
-# CORS middleware
+# ─── CORS ─────────────────────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins for hackathon
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Include routes
+# ─── Routes ───────────────────────────────────────────────────────
 app.include_router(auth.router)
 app.include_router(volunteers.router)
 app.include_router(requests.router)
 app.include_router(assignments.router)
 app.include_router(matching.router)
-app.include_router(volunteer_portal.router)
 app.include_router(dashboard.router)
+app.include_router(volunteer_portal.router)
+app.include_router(analytics.router)
+app.include_router(notifications.router)
+app.include_router(external.router)
 
 
 @app.get("/")
-def read_root():
-    """Health check endpoint."""
-    return {
-        "message": "VolunteerMatch API is running",
-        "status": "healthy",
-        "version": settings.api_version
-    }
+def root():
+    return {"message": "VolunteerMatch API v2.0", "status": "running"}
 
 
 @app.get("/health")
-def health_check():
-    """Health check for load balancers."""
-    return {"status": "ok"}
-
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+def health():
+    return {"status": "healthy", "version": "2.0.0"}

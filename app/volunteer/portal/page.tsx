@@ -1,114 +1,243 @@
-'use client'
+"use client"
+import { useEffect, useState, useCallback } from "react"
+import { volunteerPortalAPI, assignmentAPI } from "@/lib/api"
+import { useAuth } from "@/lib/auth-context"
+import { PageSkeleton, ErrorState } from "@/components/page-skeleton"
+import { QRGenerator } from "@/components/qr-generator"
+import { BadgeList } from "@/components/badge-chip"
 
-import { useEffect, useState } from 'react'
-import { volunteerAPI, MatchCandidate } from '@/lib/api'
-import { useAuth } from '@/lib/auth-context'
-import { Card } from '@/components/ui/card'
-import { Loader2 } from 'lucide-react'
-import { VolunteerRecommended } from '@/components/volunteer-recommended'
-import { VolunteerNearby } from '@/components/volunteer-nearby'
+const URGENCY_COLORS: Record<number, string> = {
+  5: "bg-red-100 text-red-800",
+  4: "bg-orange-100 text-orange-800",
+  3: "bg-yellow-100 text-yellow-800",
+  2: "bg-blue-100 text-blue-800",
+  1: "bg-gray-100 text-gray-500",
+}
 
-export default function VolunteerPortal() {
+const STATUS_COLORS: Record<string, string> = {
+  assigned: "bg-amber-50 border-amber-200",
+  accepted: "bg-blue-50 border-blue-200",
+  completed: "bg-green-50 border-green-200",
+  rejected: "bg-red-50 border-red-200",
+  expired: "bg-gray-50 border-gray-200",
+}
+
+type Task = {
+  assignment_id: number
+  request_id: number
+  match_score: number
+  reason: string
+  distance_km: number
+  assignment_status: string
+  assigned_at?: string
+  accepted_at?: string
+  completed_at?: string
+  request?: {
+    id: number
+    type: string
+    title: string
+    description: string
+    urgency: number
+    status: string
+  }
+}
+
+const STATUS_TABS = ["all", "assigned", "accepted", "completed"]
+
+export default function VolunteerPortalPage() {
   const { user } = useAuth()
-  const [recommended, setRecommended] = useState<MatchCandidate | null>(null)
-  const [nearby, setNearby] = useState<MatchCandidate[]>([])
+  const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
-  const [nearbyLoading, setNearbyLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [statusFilter, setStatusFilter] = useState("all")
+  const [actionLoading, setActionLoading] = useState<number | null>(null)
+  const [showQR, setShowQR] = useState<number | null>(null)
 
-  useEffect(() => {
-    const loadData = async () => {
-      if (!user) return
+  const volunteerId = user?.volunteer_id
 
-      try {
-        // Get recommended task
-        const recResult = await volunteerAPI.getRecommended(user.id)
-        if ((recResult.data as any)?.request_id) {
-          setRecommended(recResult.data as MatchCandidate)
-        }
-
-        // Get nearby tasks (using mock location for demo)
-        const lat = 37.7749
-        const lng = -122.4194
-        setNearbyLoading(true)
-        const nearbyResult = await volunteerAPI.getNearby(user.id, lat, lng, 10)
-        if (Array.isArray(nearbyResult.data)) {
-          setNearby(nearbyResult.data)
-        }
-      } catch (error) {
-        console.error('Error loading volunteer data:', error)
-      } finally {
-        setLoading(false)
-        setNearbyLoading(false)
-      }
+  const fetchTasks = useCallback(async () => {
+    if (!volunteerId) return
+    setLoading(true)
+    setError(null)
+    try {
+      const data = await volunteerPortalAPI.getTasks(
+        volunteerId,
+        statusFilter === "all" ? undefined : statusFilter
+      )
+      setTasks(data || [])
+    } catch (e: unknown) {
+      setError((e as Error).message)
+    } finally {
+      setLoading(false)
     }
+  }, [volunteerId, statusFilter])
 
-    loadData()
-  }, [user])
+  useEffect(() => { fetchTasks() }, [fetchTasks])
 
-  if (loading) {
+  const handleAccept = async (assignmentId: number) => {
+    setActionLoading(assignmentId)
+    try {
+      await assignmentAPI.accept(assignmentId)
+      setTasks(prev => prev.map(t =>
+        t.assignment_id === assignmentId ? { ...t, assignment_status: "accepted" } : t
+      ))
+    } catch (e: unknown) {
+      alert((e as Error).message)
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  const handleReject = async (assignmentId: number) => {
+    if (!confirm("Are you sure you want to reject this task?")) return
+    setActionLoading(assignmentId)
+    try {
+      await assignmentAPI.reject(assignmentId)
+      setTasks(prev => prev.map(t =>
+        t.assignment_id === assignmentId ? { ...t, assignment_status: "rejected" } : t
+      ))
+    } catch (e: unknown) {
+      alert((e as Error).message)
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  if (!volunteerId && !loading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="p-6 text-center py-20">
+        <p className="text-2xl mb-2">🔗</p>
+        <p className="text-gray-400 text-sm">No volunteer profile found.</p>
+        <p className="text-xs text-gray-300 mt-1">Please set up your volunteer profile first.</p>
       </div>
     )
   }
 
   return (
-    <div className="space-y-8">
+    <div className="p-6 max-w-3xl mx-auto space-y-5">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold mb-2">Volunteer Portal</h1>
-        <p className="text-muted-foreground">Welcome, {user?.name}! Find and accept volunteer opportunities.</p>
+        <h1 className="text-xl font-semibold text-gray-900">My Tasks</h1>
+        <p className="text-sm text-gray-500 mt-0.5">Track and manage your assignments</p>
       </div>
 
-      {/* Recommended Task */}
-      <div>
-        <h2 className="text-xl font-semibold mb-4">Your Best Match</h2>
-        <VolunteerRecommended
-          task={recommended}
-          isLoading={loading}
-          onAccept={(taskId) => {
-            console.log('Accepting task:', taskId)
-            // Call API to auto-accept
-          }}
-          onViewDetails={() => {
-            console.log('View details')
-          }}
-        />
+      {/* Status tabs */}
+      <div className="flex gap-1 bg-gray-100 p-1 rounded-lg w-fit">
+        {STATUS_TABS.map(s => (
+          <button
+            key={s}
+            onClick={() => setStatusFilter(s)}
+            className={`px-3 py-1 text-xs rounded-md font-medium capitalize transition-colors ${
+              statusFilter === s ? "bg-white shadow-sm text-gray-900" : "text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            {s}
+          </button>
+        ))}
       </div>
 
-      {/* Nearby Tasks */}
-      <div>
-        <h2 className="text-xl font-semibold mb-4">Nearby Opportunities</h2>
-        <VolunteerNearby
-          tasks={nearby}
-          isLoading={nearbyLoading}
-          onApply={(taskId) => {
-            console.log('Applying for task:', taskId)
-            // Call API to apply
-          }}
-        />
-      </div>
+      {loading && <PageSkeleton rows={4} />}
+      {error && <ErrorState message={error} onRetry={fetchTasks} />}
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card className="p-4">
-          <p className="text-xs text-muted-foreground font-medium mb-1">Tasks Accepted</p>
-          <p className="text-2xl font-bold">0</p>
-        </Card>
-        <Card className="p-4">
-          <p className="text-xs text-muted-foreground font-medium mb-1">Completed</p>
-          <p className="text-2xl font-bold">0</p>
-        </Card>
-        <Card className="p-4">
-          <p className="text-xs text-muted-foreground font-medium mb-1">Your Reliability</p>
-          <p className="text-2xl font-bold">100%</p>
-        </Card>
-        <Card className="p-4">
-          <p className="text-xs text-muted-foreground font-medium mb-1">Hours Donated</p>
-          <p className="text-2xl font-bold">0</p>
-        </Card>
-      </div>
+      {!loading && !error && (
+        <div className="space-y-3">
+          {tasks.length === 0 && (
+            <div className="text-center py-16 text-gray-400 text-sm">
+              <p className="text-2xl mb-2">📭</p>
+              No {statusFilter === "all" ? "" : statusFilter} tasks yet
+            </div>
+          )}
+
+          {tasks.map(task => {
+            const req = task.request
+            const bgClass = STATUS_COLORS[task.assignment_status] || "bg-white border-gray-200"
+
+            return (
+              <div key={task.assignment_id} className={`border rounded-xl p-4 transition-all ${bgClass}`}>
+                {/* Title row */}
+                <div className="flex items-start justify-between gap-3 mb-2">
+                  <div className="flex-1">
+                    <p className="font-medium text-sm text-gray-900">{req?.title || `Task #${task.request_id}`}</p>
+                    {req && (
+                      <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                        <span className="text-xs text-gray-500 capitalize">{req.type.replace(/_/g, " ")}</span>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${URGENCY_COLORS[req.urgency]}`}>
+                          Urgency {req.urgency}
+                        </span>
+                        <span className="text-[10px] text-gray-400">{task.distance_km}km away</span>
+                      </div>
+                    )}
+                  </div>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium flex-shrink-0 capitalize ${
+                    task.assignment_status === "completed" ? "bg-green-100 text-green-800" :
+                    task.assignment_status === "accepted" ? "bg-blue-100 text-blue-800" :
+                    task.assignment_status === "assigned" ? "bg-amber-100 text-amber-800" :
+                    "bg-gray-100 text-gray-500"
+                  }`}>
+                    {task.assignment_status}
+                  </span>
+                </div>
+
+                {/* Description */}
+                {req?.description && (
+                  <p className="text-xs text-gray-500 mb-2.5 line-clamp-2">{req.description}</p>
+                )}
+
+                {/* Match info */}
+                <div className="flex items-center gap-3 mb-3">
+                  <span className="text-[11px] text-gray-400">Score {(task.match_score * 100).toFixed(0)}%</span>
+                  <span className="text-[11px] text-gray-400">{task.reason}</span>
+                </div>
+
+                {/* QR code section (accepted tasks) */}
+                {task.assignment_status === "accepted" && (
+                  <div className="mb-3">
+                    <button
+                      onClick={() => setShowQR(showQR === task.assignment_id ? null : task.assignment_id)}
+                      className="text-xs text-blue-600 hover:underline"
+                    >
+                      {showQR === task.assignment_id ? "Hide QR Code" : "Show QR code for check-in"}
+                    </button>
+                    {showQR === task.assignment_id && (
+                      <div className="mt-3">
+                        <QRGenerator assignmentId={task.assignment_id} />
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Actions */}
+                {task.assignment_status === "assigned" && (
+                  <div className="flex gap-2">
+                    <button
+                      disabled={actionLoading === task.assignment_id}
+                      onClick={() => handleAccept(task.assignment_id)}
+                      className="flex-1 text-xs bg-blue-600 text-white py-1.5 rounded-lg hover:bg-blue-700 disabled:opacity-60 font-medium transition-colors"
+                    >
+                      {actionLoading === task.assignment_id ? "..." : "✓ Accept"}
+                    </button>
+                    <button
+                      disabled={actionLoading === task.assignment_id}
+                      onClick={() => handleReject(task.assignment_id)}
+                      className="flex-1 text-xs border border-red-200 text-red-600 py-1.5 rounded-lg hover:bg-red-50 disabled:opacity-60 font-medium transition-colors"
+                    >
+                      ✕ Reject
+                    </button>
+                  </div>
+                )}
+
+                {/* Timestamps */}
+                {task.assigned_at && (
+                  <p className="text-[10px] text-gray-300 mt-2">
+                    Assigned {new Date(task.assigned_at).toLocaleDateString()}
+                    {task.completed_at && ` · Completed ${new Date(task.completed_at).toLocaleDateString()}`}
+                  </p>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }

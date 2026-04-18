@@ -1,137 +1,286 @@
-'use client';
+"use client"
+import { useEffect, useState, useCallback } from "react"
+import { volunteerAPI } from "@/lib/api"
+import { PageSkeleton, ErrorState } from "@/components/page-skeleton"
+import { BadgeList } from "@/components/badge-chip"
 
-import Link from 'next/link';
-import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Users, Home, AlertCircle, TrendingUp, Settings, LogOut, Search, MapPin, Star, CheckCircle2 } from 'lucide-react';
-import { mockVolunteers } from '@/lib/mock-data';
+const SKILL_OPTIONS = [
+  "all", "medical", "first_aid", "construction", "food_distribution",
+  "logistics", "counseling", "driving", "search_rescue", "communication"
+]
 
-export default function VolunteersPage() {
+type VolunteerItem = {
+  id: number
+  name: string
+  email: string
+  skills: string[]
+  is_available: boolean
+  reliability_score: number
+  tasks_completed: number
+  tasks_rejected: number
+  badges: string[]
+  avg_response_time_minutes?: number
+}
+
+type LeaderboardItem = {
+  volunteer_id: number
+  name: string
+  tasks_completed: number
+  reliability_score: number
+  badges: string[]
+  skills: string[]
+  avg_response_time_minutes?: number
+}
+
+const LIMIT = 20
+
+export default function CoordinatorVolunteersPage() {
+  const [volunteers, setVolunteers] = useState<VolunteerItem[]>([])
+  const [leaderboard, setLeaderboard] = useState<LeaderboardItem[]>([])
+  const [activeTab, setActiveTab] = useState<"all" | "leaderboard">("all")
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [availableOnly, setAvailableOnly] = useState(false)
+  const [skillFilter, setSkillFilter] = useState("all")
+  const [page, setPage] = useState(0)
+  const [total, setTotal] = useState(0)
+
+  const fetchVolunteers = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const data = await volunteerAPI.getAll({
+        is_available: availableOnly || undefined,
+        skill: skillFilter === "all" ? undefined : skillFilter,
+        limit: LIMIT,
+        offset: page * LIMIT,
+      })
+      setVolunteers(data.items)
+      setTotal(data.total)
+    } catch (e: unknown) {
+      setError((e as Error).message)
+    } finally {
+      setLoading(false)
+    }
+  }, [availableOnly, skillFilter, page])
+
+  const fetchLeaderboard = useCallback(async () => {
+    setLoading(true)
+    try {
+      const data = await volunteerAPI.getLeaderboard()
+      setLeaderboard(data)
+    } catch (e: unknown) {
+      setError((e as Error).message)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (activeTab === "all") fetchVolunteers()
+    else fetchLeaderboard()
+  }, [activeTab, fetchVolunteers, fetchLeaderboard])
+
+  const handleToggleAvailability = async (id: number, current: boolean) => {
+    // Optimistic update
+    setVolunteers(prev =>
+      prev.map(v => v.id === id ? { ...v, is_available: !current } : v)
+    )
+    try {
+      await volunteerAPI.toggleAvailability(id, !current)
+    } catch {
+      // Revert
+      setVolunteers(prev =>
+        prev.map(v => v.id === id ? { ...v, is_available: current } : v)
+      )
+    }
+  }
+
   return (
-    <div className="min-h-screen bg-background">
-      {/* Sidebar */}
-      <div className="fixed left-0 top-0 h-screen w-64 bg-sidebar border-r border-sidebar-border hidden md:block">
-        <div className="p-6 space-y-8">
-          <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground font-bold">
-              V
-            </div>
-            <span className="font-semibold text-sidebar-foreground">VolunteerMatch</span>
-          </div>
-
-          <nav className="space-y-2">
-            <Link href="/coordinator/dashboard" className="flex items-center gap-3 px-4 py-2 rounded-lg text-sidebar-foreground hover:bg-sidebar-accent/50 transition">
-              <Home className="w-5 h-5" />
-              Dashboard
-            </Link>
-            <Link href="/coordinator/requests" className="flex items-center gap-3 px-4 py-2 rounded-lg text-sidebar-foreground hover:bg-sidebar-accent/50 transition">
-              <AlertCircle className="w-5 h-5" />
-              Requests
-            </Link>
-            <Link href="/coordinator/volunteers" className="flex items-center gap-3 px-4 py-2 rounded-lg bg-sidebar-accent text-sidebar-accent-foreground font-medium">
-              <Users className="w-5 h-5" />
-              Volunteers
-            </Link>
-            <Link href="/coordinator/analytics" className="flex items-center gap-3 px-4 py-2 rounded-lg text-sidebar-foreground hover:bg-sidebar-accent/50 transition">
-              <TrendingUp className="w-5 h-5" />
-              Analytics
-            </Link>
-          </nav>
-
-          <div className="pt-8 border-t border-sidebar-border space-y-2">
-            <Link href="#" className="flex items-center gap-3 px-4 py-2 rounded-lg text-sidebar-foreground hover:bg-sidebar-accent/50 transition">
-              <Settings className="w-5 h-5" />
-              Settings
-            </Link>
-            <Link href="/login" className="flex items-center gap-3 px-4 py-2 rounded-lg text-sidebar-foreground hover:bg-sidebar-accent/50 transition">
-              <LogOut className="w-5 h-5" />
-              Logout
-            </Link>
-          </div>
+    <div className="p-6 max-w-5xl mx-auto">
+      {/* Header + Tabs */}
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-xl font-semibold text-gray-900">Volunteers</h1>
+          {activeTab === "all" && (
+            <p className="text-sm text-gray-500 mt-0.5">{total} total</p>
+          )}
+        </div>
+        <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
+          {(["all", "leaderboard"] as const).map(t => (
+            <button
+              key={t}
+              onClick={() => setActiveTab(t)}
+              className={`px-3 py-1 text-xs rounded-md font-medium capitalize transition-colors ${
+                activeTab === t ? "bg-white shadow-sm text-gray-900" : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              {t === "leaderboard" ? "🏆 Leaderboard" : "All Volunteers"}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="md:ml-64">
-        {/* Top Bar */}
-        <div className="sticky top-0 z-30 border-b border-border bg-background/95 backdrop-blur px-4 sm:px-6 py-4 flex items-center justify-between">
-          <h1 className="text-2xl font-bold">Volunteer Network</h1>
-          <span className="text-sm text-muted-foreground">{mockVolunteers.length} volunteers</span>
-        </div>
-
-        {/* Content */}
-        <div className="p-4 sm:p-6 space-y-6">
-          {/* Search & Filter */}
-          <div className="flex gap-3">
-            <Input
-              placeholder="Search volunteers by name or skill..."
-              className="flex-1"
-              icon={<Search className="w-4 h-4" />}
-            />
-            <Button variant="outline">Filter</Button>
+      {/* All Volunteers Tab */}
+      {activeTab === "all" && (
+        <>
+          {/* Filters */}
+          <div className="flex gap-3 mb-5 flex-wrap items-center">
+            <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={availableOnly}
+                onChange={e => { setAvailableOnly(e.target.checked); setPage(0) }}
+                className="rounded border-gray-300"
+              />
+              Available only
+            </label>
+            <select
+              value={skillFilter}
+              onChange={e => { setSkillFilter(e.target.value); setPage(0) }}
+              className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {SKILL_OPTIONS.map(s => (
+                <option key={s} value={s}>
+                  {s === "all" ? "All skills" : s.replace(/_/g, " ")}
+                </option>
+              ))}
+            </select>
           </div>
 
-          {/* Volunteers Grid */}
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {mockVolunteers.map((volunteer) => (
-              <Card key={volunteer.id} className="p-4 hover:border-primary/50 transition cursor-pointer">
-                <div className="space-y-4">
-                  <div className="space-y-1">
-                    <h3 className="font-semibold text-lg">{volunteer.name}</h3>
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <MapPin className="w-4 h-4" />
-                      {volunteer.location}
-                    </div>
-                  </div>
+          {loading && <PageSkeleton rows={6} />}
+          {error && <ErrorState message={error} onRetry={fetchVolunteers} />}
 
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-muted-foreground">Reliability</span>
-                      <div className="flex items-center gap-1">
-                        <span className="font-semibold">{volunteer.reliabilityScore}%</span>
-                        <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
+          {!loading && !error && (
+            <>
+              <div className="space-y-2">
+                {volunteers.map(v => (
+                  <div key={v.id} className="bg-white border border-gray-200 rounded-xl p-4 flex items-center justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <span className="font-medium text-sm text-gray-900">{v.name}</span>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
+                          v.is_available ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-500"
+                        }`}>
+                          {v.is_available ? "● Available" : "○ Unavailable"}
+                        </span>
+                      </div>
+
+                      {/* Skills */}
+                      <div className="flex gap-1 flex-wrap mb-2">
+                        {(v.skills || []).map(s => (
+                          <span key={s} className="text-[10px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded capitalize">
+                            {s.replace(/_/g, " ")}
+                          </span>
+                        ))}
+                      </div>
+
+                      {/* Badges */}
+                      {v.badges && v.badges.length > 0 && (
+                        <div className="mb-2">
+                          <BadgeList badges={v.badges} />
+                        </div>
+                      )}
+
+                      {/* Stats */}
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-20 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-blue-500 rounded-full transition-all"
+                              style={{ width: `${v.reliability_score * 100}%` }}
+                            />
+                          </div>
+                          <span className="text-[11px] text-gray-500">
+                            {(v.reliability_score * 100).toFixed(0)}% reliable
+                          </span>
+                        </div>
+                        <span className="text-[11px] text-gray-400">{v.tasks_completed} completed</span>
+                        {v.avg_response_time_minutes && (
+                          <span className="text-[11px] text-gray-400">
+                            ~{v.avg_response_time_minutes.toFixed(0)}m avg response
+                          </span>
+                        )}
                       </div>
                     </div>
-                    <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-primary"
-                        style={{ width: `${volunteer.reliabilityScore}%` }}
-                      />
-                    </div>
-                  </div>
 
-                  <div className="space-y-2 pt-2 border-t border-border">
-                    <p className="text-xs font-medium text-muted-foreground">Skills ({volunteer.skills.length})</p>
-                    <div className="flex flex-wrap gap-1">
-                      {volunteer.skills.slice(0, 2).map((skill) => (
-                        <span key={skill} className="text-xs bg-primary/20 text-primary px-2 py-0.5 rounded">
-                          {skill}
-                        </span>
-                      ))}
-                      {volunteer.skills.length > 2 && (
-                        <span className="text-xs text-muted-foreground px-2 py-0.5">+{volunteer.skills.length - 2} more</span>
-                      )}
-                    </div>
+                    <button
+                      onClick={() => handleToggleAvailability(v.id, v.is_available)}
+                      className={`text-xs px-3 py-1.5 rounded-lg border font-medium transition-colors flex-shrink-0 ${
+                        v.is_available
+                          ? "border-gray-200 text-gray-600 hover:bg-gray-50"
+                          : "border-green-200 text-green-700 hover:bg-green-50"
+                      }`}
+                    >
+                      {v.is_available ? "Mark Unavailable" : "Mark Available"}
+                    </button>
                   </div>
+                ))}
 
-                  <div className="flex items-center justify-between text-xs text-muted-foreground">
-                    <span className="flex items-center gap-1">
-                      <CheckCircle2 className="w-4 h-4 text-green-500" />
-                      {volunteer.tasksCompleted} completed
-                    </span>
-                    <span>{volunteer.availability}</span>
+                {volunteers.length === 0 && (
+                  <div className="text-center py-16 text-gray-400 text-sm">
+                    <p className="text-2xl mb-2">👥</p>
+                    No volunteers found
                   </div>
+                )}
+              </div>
 
-                  <Button className="w-full" variant="outline" size="sm">
-                    View Profile
-                  </Button>
+              {total > LIMIT && (
+                <div className="flex justify-center items-center gap-3 mt-6">
+                  <button disabled={page === 0} onClick={() => setPage(p => p - 1)}
+                    className="text-xs px-3 py-1.5 border border-gray-200 rounded-lg disabled:opacity-40">← Prev</button>
+                  <span className="text-xs text-gray-500">Page {page + 1} of {Math.ceil(total / LIMIT)}</span>
+                  <button disabled={(page + 1) * LIMIT >= total} onClick={() => setPage(p => p + 1)}
+                    className="text-xs px-3 py-1.5 border border-gray-200 rounded-lg disabled:opacity-40">Next →</button>
                 </div>
-              </Card>
-            ))}
-          </div>
-        </div>
-      </div>
+              )}
+            </>
+          )}
+        </>
+      )}
+
+      {/* Leaderboard Tab */}
+      {activeTab === "leaderboard" && (
+        <>
+          {loading && <PageSkeleton rows={10} />}
+          {error && <ErrorState message={error} onRetry={fetchLeaderboard} />}
+          {!loading && !error && (
+            <div className="space-y-2">
+              {leaderboard.map((v, i) => (
+                <div key={v.volunteer_id} className="bg-white border border-gray-200 rounded-xl p-4 flex items-center gap-4">
+                  <span className={`text-xl font-bold w-8 text-center flex-shrink-0 ${
+                    i === 0 ? "text-amber-500" : i === 1 ? "text-gray-400" : i === 2 ? "text-orange-400" : "text-gray-300"
+                  }`}>
+                    {i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `${i + 1}`}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-sm text-gray-900">{v.name}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      {v.tasks_completed} tasks · {(v.reliability_score * 100).toFixed(0)}% reliability
+                      {v.avg_response_time_minutes && ` · ~${v.avg_response_time_minutes.toFixed(0)}m response`}
+                    </p>
+                    {v.badges && v.badges.length > 0 && (
+                      <div className="mt-1.5">
+                        <BadgeList badges={v.badges} />
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex gap-1 flex-wrap justify-end max-w-32 flex-shrink-0">
+                    {(v.skills || []).map(s => (
+                      <span key={s} className="text-[10px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded capitalize">
+                        {s.replace(/_/g, " ")}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+              {leaderboard.length === 0 && (
+                <div className="text-center py-16 text-gray-400 text-sm">No leaderboard data yet</div>
+              )}
+            </div>
+          )}
+        </>
+      )}
     </div>
-  );
+  )
 }

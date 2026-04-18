@@ -1,15 +1,16 @@
 from pydantic import BaseModel, EmailStr
-from typing import Optional, List
+from typing import Optional, List, Any, Dict
 from datetime import datetime
-from enum import Enum
 
 
-class UserRole(str, Enum):
+# ====== Enum-like String Aliases (kept for schema compatibility) ======
+class UserRole:
     ngo = "ngo"
     volunteer = "volunteer"
+    admin = "admin"
 
 
-class RequestType(str, Enum):
+class RequestType:
     medical = "medical"
     food = "food"
     rescue = "rescue"
@@ -18,17 +19,19 @@ class RequestType(str, Enum):
     counseling = "counseling"
 
 
-class RequestStatus(str, Enum):
+class RequestStatus:
     pending = "pending"
     assigned = "assigned"
     completed = "completed"
+    cancelled = "cancelled"
 
 
-class AssignmentStatus(str, Enum):
+class AssignmentStatus:
     assigned = "assigned"
     accepted = "accepted"
     rejected = "rejected"
     completed = "completed"
+    expired = "expired"
 
 
 # ====== User Schemas ======
@@ -36,7 +39,7 @@ class UserRegister(BaseModel):
     name: str
     email: EmailStr
     password: str
-    role: UserRole
+    role: str
 
 
 class UserLogin(BaseModel):
@@ -48,8 +51,8 @@ class UserResponse(BaseModel):
     id: int
     name: str
     email: str
-    role: UserRole
-    created_at: datetime
+    role: str
+    volunteer_id: Optional[int] = None   # ← Fix 1: needed for volunteer-side features
 
     class Config:
         from_attributes = True
@@ -67,6 +70,8 @@ class VolunteerCreate(BaseModel):
     longitude: float
     skills: List[str]
     is_available: bool = True
+    bio: Optional[str] = None
+    phone: Optional[str] = None
 
 
 class VolunteerUpdate(BaseModel):
@@ -74,6 +79,10 @@ class VolunteerUpdate(BaseModel):
     longitude: Optional[float] = None
     skills: Optional[List[str]] = None
     is_available: Optional[bool] = None
+    bio: Optional[str] = None
+    phone: Optional[str] = None
+    availability_slots: Optional[Dict[str, List[str]]] = None
+    profile_image_url: Optional[str] = None
 
 
 class VolunteerResponse(BaseModel):
@@ -86,6 +95,12 @@ class VolunteerResponse(BaseModel):
     reliability_score: float
     tasks_completed: int
     tasks_rejected: int
+    bio: Optional[str] = None
+    phone: Optional[str] = None
+    availability_slots: Optional[Dict[str, List[str]]] = None
+    badges: Optional[List[str]] = None
+    avg_response_time_minutes: Optional[float] = None
+    profile_image_url: Optional[str] = None
     created_at: datetime
     user: UserResponse
 
@@ -95,7 +110,7 @@ class VolunteerResponse(BaseModel):
 
 # ====== Request Schemas ======
 class RequestCreate(BaseModel):
-    type: RequestType
+    type: str
     title: str
     description: str
     latitude: float
@@ -103,24 +118,29 @@ class RequestCreate(BaseModel):
     urgency: int  # 1-5
     volunteers_needed: int = 1
     deadline: Optional[datetime] = None
+    tags: Optional[List[str]] = None
+    source: str = "internal"
 
 
 class RequestUpdate(BaseModel):
-    status: Optional[RequestStatus] = None
+    status: Optional[str] = None
     urgency: Optional[int] = None
     volunteers_needed: Optional[int] = None
 
 
 class RequestResponse(BaseModel):
     id: int
-    type: RequestType
+    type: str
     title: str
     description: str
     latitude: float
     longitude: float
     urgency: int
-    status: RequestStatus
+    status: str
     volunteers_needed: int
+    fulfilled_count: int = 0
+    tags: Optional[List[str]] = None
+    source: str = "internal"
     created_by: int
     created_at: datetime
     updated_at: datetime
@@ -131,8 +151,8 @@ class RequestResponse(BaseModel):
 
 
 class RequestDetailResponse(RequestResponse):
-    created_by_user: UserResponse
-    assignments: List["AssignmentResponse"]
+    creator: Optional[UserResponse] = None
+    assignments: List["AssignmentResponse"] = []
 
 
 # ====== Assignment Schemas ======
@@ -147,7 +167,7 @@ class AssignmentResponse(BaseModel):
     request_id: int
     volunteer_id: int
     match_score: float
-    status: AssignmentStatus
+    status: str
     assigned_at: datetime
     accepted_at: Optional[datetime]
     completed_at: Optional[datetime]
@@ -180,7 +200,7 @@ class MatchCandidate(BaseModel):
     volunteer: VolunteerResponse
     request_id: Optional[int] = None
     assignment_id: Optional[int] = None
-    assignment_status: Optional[AssignmentStatus] = None
+    assignment_status: Optional[str] = None
     breakdown: Optional[MatchScoreBreakdown] = None
 
 
@@ -207,6 +227,9 @@ class DashboardStats(BaseModel):
     total_assignments: int
     average_reliability: float
     pending_assignments: int
+    active_assignments_now: Optional[int] = 0
+    volunteers_on_ground: Optional[int] = 0
+    completed_requests: Optional[int] = 0
 
 
 class VolunteerHeatmapPoint(BaseModel):
@@ -222,14 +245,29 @@ class RequestHeatmapPoint(BaseModel):
     request_id: int
     latitude: float
     longitude: float
-    type: RequestType
+    type: str
     urgency: int
-    status: RequestStatus
+    status: str
 
 
 class HeatmapData(BaseModel):
     volunteers: List[VolunteerHeatmapPoint]
     requests: List[RequestHeatmapPoint]
+
+
+# ====== Notification Schemas ======
+class NotificationResponse(BaseModel):
+    id: int
+    user_id: int
+    title: str
+    message: str
+    type: str
+    is_read: bool
+    reference_id: Optional[int] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
 
 
 # Update forward references

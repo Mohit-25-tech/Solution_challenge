@@ -1,190 +1,203 @@
-/**
- * API Service Layer
- * Centralized API calls for all backend endpoints
- */
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000"
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'
+async function apiFetch(path: string, options: RequestInit = {}) {
+  const token =
+    typeof window !== "undefined" ? localStorage.getItem("token") : null
 
-export interface ApiResponse<T> {
-  data?: T
-  error?: string
-  message?: string
-}
+  const res = await fetch(`${BASE_URL}${path}`, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(options.headers as Record<string, string> | undefined),
+    },
+  })
 
-/**
- * Generic fetch wrapper with error handling
- */
-async function apiFetch<T>(
-  endpoint: string,
-  options: RequestInit = {}
-): Promise<ApiResponse<T>> {
-  try {
-    const response = await fetch(`${API_BASE}${endpoint}`, {
-      ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
-    })
-
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ detail: response.statusText }))
-      return {
-        error: error?.detail || error?.message || 'An error occurred',
-      }
-    }
-
-    const data = await response.json()
-    return { data }
-  } catch (error) {
-    return {
-      error: error instanceof Error ? error.message : 'Network error',
-    }
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Request failed" }))
+    throw new Error(err.detail || "Request failed")
   }
+
+  return res.json()
 }
 
-/**
- * Auth endpoints
- */
+// ── Auth ──────────────────────────────────────────────────────────
 export const authAPI = {
-  register: async (name: string, email: string, password: string, role: 'ngo' | 'volunteer') => {
-    return apiFetch('/auth/register', {
-      method: 'POST',
-      body: JSON.stringify({ name, email, password, role }),
-    })
-  },
+  register: (data: {
+    name: string
+    email: string
+    password: string
+    role: string
+  }) => apiFetch("/auth/register", { method: "POST", body: JSON.stringify(data) }),
 
-  login: async (email: string, password: string) => {
-    return apiFetch('/auth/login', {
-      method: 'POST',
-      body: JSON.stringify({ email, password }),
-    })
-  },
+  login: (data: { email: string; password: string }) =>
+    apiFetch("/auth/login", { method: "POST", body: JSON.stringify(data) }),
 }
 
-/**
- * Volunteer endpoints
- */
+// ── Volunteers ────────────────────────────────────────────────────
 export const volunteerAPI = {
-  getRecommended: async (volunteerId: number) => {
-    return apiFetch(`/volunteer/recommended?volunteer_id=${volunteerId}`)
-  },
-
-  getNearby: async (volunteerId: number, latitude: number, longitude: number, limit = 10) => {
-    return apiFetch(
-      `/volunteer/nearby?volunteer_id=${volunteerId}&latitude=${latitude}&longitude=${longitude}&limit=${limit}`
-    )
-  },
-
-  getMyTasks: async (volunteerId: number, statusFilter?: string) => {
-    const query = statusFilter ? `?volunteer_id=${volunteerId}&status_filter=${statusFilter}` : `?volunteer_id=${volunteerId}`
-    return apiFetch(`/volunteer/tasks${query}`)
-  },
-
-  getAll: async (skip = 0, limit = 100) => {
-    return apiFetch(`/volunteers?skip=${skip}&limit=${limit}`)
-  },
-
-  getById: async (volunteerId: number) => {
-    return apiFetch(`/volunteers/${volunteerId}`)
-  },
-
-  update: async (volunteerId: number, data: any) => {
-    return apiFetch(`/volunteers/${volunteerId}`, {
-      method: 'PATCH',
+  create: (userId: number, data: object) =>
+    apiFetch(`/volunteers?user_id=${userId}`, {
+      method: "POST",
       body: JSON.stringify(data),
-    })
+    }),
+
+  getAll: (params?: {
+    is_available?: boolean
+    skill?: string
+    limit?: number
+    offset?: number
+  }) => {
+    const q = new URLSearchParams()
+    if (params?.is_available !== undefined)
+      q.set("is_available", String(params.is_available))
+    if (params?.skill) q.set("skill", params.skill)
+    if (params?.limit) q.set("limit", String(params.limit))
+    if (params?.offset) q.set("offset", String(params.offset))
+    return apiFetch(`/volunteers?${q}`)
   },
+
+  getById: (id: number) => apiFetch(`/volunteers/${id}`),
+
+  update: (id: number, data: object) =>
+    apiFetch(`/volunteers/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+
+  toggleAvailability: (id: number, isAvailable: boolean) =>
+    apiFetch(`/volunteers/${id}/availability`, {
+      method: "PATCH",
+      body: JSON.stringify({ is_available: isAvailable }),
+    }),
+
+  getHistory: (id: number) => apiFetch(`/volunteers/${id}/history`),
+
+  getLeaderboard: () => apiFetch(`/volunteers/leaderboard`),
 }
 
-/**
- * Request endpoints
- */
+// ── Requests ──────────────────────────────────────────────────────
 export const requestAPI = {
-  create: async (userId: number, data: any) => {
-    return apiFetch(`/requests?user_id=${userId}`, {
-      method: 'POST',
+  create: (userId: number, data: object) =>
+    apiFetch(`/requests?user_id=${userId}`, {
+      method: "POST",
       body: JSON.stringify(data),
-    })
+    }),
+
+  getAll: (params?: {
+    status?: string
+    type?: string
+    urgency?: number
+    limit?: number
+    offset?: number
+  }) => {
+    const q = new URLSearchParams()
+    if (params?.status) q.set("status", params.status)
+    if (params?.type) q.set("type", params.type)
+    if (params?.urgency) q.set("urgency", String(params.urgency))
+    if (params?.limit) q.set("limit", String(params.limit))
+    if (params?.offset) q.set("offset", String(params.offset))
+    return apiFetch(`/requests?${q}`)
   },
 
-  getAll: async (skip = 0, limit = 100, statusFilter?: string) => {
-    let query = `?skip=${skip}&limit=${limit}`
-    if (statusFilter) query += `&status_filter=${statusFilter}`
-    return apiFetch(`/requests${query}`)
-  },
+  getById: (id: number) => apiFetch(`/requests/${id}`),
 
-  getById: async (requestId: number) => {
-    return apiFetch(`/requests/${requestId}`)
-  },
-
-  update: async (requestId: number, data: any) => {
-    return apiFetch(`/requests/${requestId}`, {
-      method: 'PATCH',
+  update: (id: number, data: object) =>
+    apiFetch(`/requests/${id}`, {
+      method: "PATCH",
       body: JSON.stringify(data),
-    })
-  },
+    }),
+
+  updateStatus: (id: number, status: string) =>
+    apiFetch(`/requests/${id}/status`, {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    }),
+
+  cancel: (id: number) =>
+    apiFetch(`/requests/${id}`, { method: "DELETE" }),
 }
 
-/**
- * Matching endpoints
- */
-export const matchingAPI = {
-  getMatches: async (requestId: number, limit = 10) => {
-    return apiFetch(`/match/${requestId}?limit=${limit}`, {
-      method: 'POST',
-    })
-  },
-
-  autoAssign: async (requestId: number) => {
-    return apiFetch(`/match/assign/${requestId}`, {
-      method: 'POST',
-    })
-  },
-}
-
-/**
- * Assignment endpoints
- */
+// ── Assignments ───────────────────────────────────────────────────
 export const assignmentAPI = {
-  accept: async (assignmentId: number) => {
-    return apiFetch(`/assignments/${assignmentId}/accept`, {
-      method: 'POST',
-    })
-  },
+  getById: (id: number) => apiFetch(`/assignments/${id}`),
 
-  reject: async (assignmentId: number) => {
-    return apiFetch(`/assignments/${assignmentId}/reject`, {
-      method: 'POST',
-    })
-  },
+  accept: (id: number) =>
+    apiFetch(`/assignments/${id}/accept`, { method: "POST" }),
 
-  complete: async (assignmentId: number) => {
-    return apiFetch(`/assignments/${assignmentId}/complete`, {
-      method: 'POST',
-    })
-  },
+  reject: (id: number) =>
+    apiFetch(`/assignments/${id}/reject`, { method: "POST" }),
 
-  getAll: async (skip = 0, limit = 100, statusFilter?: string) => {
-    let query = `?skip=${skip}&limit=${limit}`
-    if (statusFilter) query += `&status_filter=${statusFilter}`
-    return apiFetch(`/assignments${query}`)
-  },
+  complete: (id: number) =>
+    apiFetch(`/assignments/${id}/complete`, { method: "POST" }),
 
-  getById: async (assignmentId: number) => {
-    return apiFetch(`/assignments/${assignmentId}`)
-  },
+  getQRData: (id: number) => apiFetch(`/assignments/${id}/qr-data`),
+
+  verifyQR: (token: string) =>
+    apiFetch(`/assignments/verify-qr`, {
+      method: "POST",
+      body: JSON.stringify({ token }),
+    }),
 }
 
-/**
- * Dashboard endpoints
- */
-export const dashboardAPI = {
-  getStats: async () => {
-    return apiFetch('/dashboard/stats')
-  },
+// ── Matching ──────────────────────────────────────────────────────
+export const matchingAPI = {
+  getMatches: (requestId: number, limit = 5) =>
+    apiFetch(`/match/${requestId}?limit=${limit}`, { method: "POST" }),
 
-  getHeatmap: async () => {
-    return apiFetch('/dashboard/heatmap')
-  },
+  assignBest: (requestId: number) =>
+    apiFetch(`/match/assign/${requestId}`, { method: "POST" }),
+}
+
+// ── Dashboard ─────────────────────────────────────────────────────
+export const dashboardAPI = {
+  getStats: () => apiFetch(`/dashboard/stats`),
+  getHeatmap: () => apiFetch(`/dashboard/heatmap`),
+}
+
+// ── Analytics ─────────────────────────────────────────────────────
+export const analyticsAPI = {
+  getOverview: () => apiFetch(`/analytics/overview`),
+  getVolunteerStats: (volunteerId: number) =>
+    apiFetch(`/analytics/volunteer/${volunteerId}`),
+}
+
+// ── Notifications ─────────────────────────────────────────────────
+export const notificationAPI = {
+  getAll: (userId: number, limit = 20) =>
+    apiFetch(`/notifications?user_id=${userId}&limit=${limit}`),
+
+  markRead: (id: number) =>
+    apiFetch(`/notifications/${id}/read`, { method: "POST" }),
+
+  markAllRead: (userId: number) =>
+    apiFetch(`/notifications/read-all?user_id=${userId}`, { method: "POST" }),
+}
+
+// ── Volunteer Portal ──────────────────────────────────────────────
+export const volunteerPortalAPI = {
+  getRecommended: (volunteerId: number) =>
+    apiFetch(`/volunteer/recommended?volunteer_id=${volunteerId}`),
+
+  getNearby: (
+    volunteerId: number,
+    lat: number,
+    lng: number,
+    limit = 10
+  ) =>
+    apiFetch(
+      `/volunteer/nearby?volunteer_id=${volunteerId}&latitude=${lat}&longitude=${lng}&limit=${limit}`
+    ),
+
+  getTasks: (volunteerId: number, statusFilter?: string) =>
+    apiFetch(
+      `/volunteer/tasks?volunteer_id=${volunteerId}${statusFilter ? `&status_filter=${statusFilter}` : ""}`
+    ),
+}
+
+// ── External ──────────────────────────────────────────────────────
+export const externalAPI = {
+  getNDMAAlerts: () => apiFetch(`/external/ndma-alerts`),
+  getWeather: (lat: number, lng: number) =>
+    apiFetch(`/external/weather?lat=${lat}&lng=${lng}`),
 }

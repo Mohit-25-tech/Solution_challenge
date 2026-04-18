@@ -1,246 +1,162 @@
-'use client';
+"use client"
+import { useEffect, useState, useCallback } from "react"
+import { analyticsAPI } from "@/lib/api"
+import { PageSkeleton, ErrorState } from "@/components/page-skeleton"
+import {
+  LineChart, Line, BarChart, Bar, XAxis, YAxis,
+  CartesianGrid, Tooltip, ResponsiveContainer, Cell
+} from "recharts"
 
-import Link from 'next/link';
-import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { TrendingUp, Users, Award, Target, Download, Home, AlertCircle, Settings, LogOut } from 'lucide-react';
-import { mockAnalytics } from '@/lib/mock-data';
+type Overview = {
+  total_volunteers: number
+  active_volunteers: number
+  total_requests: number
+  completed_requests: number
+  pending_requests: number
+  fulfillment_rate: number
+  avg_match_score: number
+  requests_by_day: { date: string; count: number }[]
+  top_skills_demand: { skill: string; count: number }[]
+}
 
-const COLORS = ['#7c3aed', '#0ea5e9', '#f59e0b', '#10b981', '#ef4444'];
+const BAR_COLORS = [
+  "#6366f1", "#8b5cf6", "#06b6d4", "#10b981",
+  "#f59e0b", "#ef4444", "#ec4899"
+]
 
 export default function AnalyticsPage() {
-  const skillsData = Object.entries(mockAnalytics.volunteersWithSkills).map(([name, value]) => ({
-    name,
-    value,
-  }));
+  const [data, setData] = useState<Overview | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const fetchData = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const d = await analyticsAPI.getOverview()
+      setData(d)
+    } catch (e: unknown) {
+      setError((e as Error).message)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { fetchData() }, [fetchData])
+
+  if (loading) return <div className="p-6"><PageSkeleton rows={8} /></div>
+  if (error) return <div className="p-6"><ErrorState message={error} onRetry={fetchData} /></div>
+  if (!data) return null
+
+  const STAT_CARDS = [
+    { label: "Total Volunteers", value: data.total_volunteers, color: "text-blue-600", bg: "bg-blue-50", emoji: "👥" },
+    { label: "Active Now", value: data.active_volunteers, color: "text-green-600", bg: "bg-green-50", emoji: "✅" },
+    { label: "Total Requests", value: data.total_requests, color: "text-gray-900", bg: "bg-gray-50", emoji: "📋" },
+    { label: "Completed", value: data.completed_requests, color: "text-emerald-600", bg: "bg-emerald-50", emoji: "🎯" },
+    { label: "Fulfillment Rate", value: `${data.fulfillment_rate}%`, color: "text-indigo-600", bg: "bg-indigo-50", emoji: "📈" },
+    {
+      label: "Avg Match Score",
+      value: `${(data.avg_match_score * 100).toFixed(0)}%`,
+      color: "text-purple-600",
+      bg: "bg-purple-50",
+      emoji: "🎯"
+    },
+  ]
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Sidebar */}
-      <div className="fixed left-0 top-0 h-screen w-64 bg-sidebar border-r border-sidebar-border hidden md:block">
-        <div className="p-6 space-y-8">
-          <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground font-bold">
-              V
-            </div>
-            <span className="font-semibold text-sidebar-foreground">VolunteerMatch</span>
-          </div>
-
-          <nav className="space-y-2">
-            <Link href="/coordinator/dashboard" className="flex items-center gap-3 px-4 py-2 rounded-lg text-sidebar-foreground hover:bg-sidebar-accent/50 transition">
-              <Home className="w-5 h-5" />
-              Dashboard
-            </Link>
-            <Link href="/coordinator/requests" className="flex items-center gap-3 px-4 py-2 rounded-lg text-sidebar-foreground hover:bg-sidebar-accent/50 transition">
-              <AlertCircle className="w-5 h-5" />
-              Requests
-            </Link>
-            <Link href="/coordinator/volunteers" className="flex items-center gap-3 px-4 py-2 rounded-lg text-sidebar-foreground hover:bg-sidebar-accent/50 transition">
-              <Users className="w-5 h-5" />
-              Volunteers
-            </Link>
-            <Link href="/coordinator/analytics" className="flex items-center gap-3 px-4 py-2 rounded-lg bg-sidebar-accent text-sidebar-accent-foreground font-medium">
-              <TrendingUp className="w-5 h-5" />
-              Analytics
-            </Link>
-          </nav>
-
-          <div className="pt-8 border-t border-sidebar-border space-y-2">
-            <Link href="#" className="flex items-center gap-3 px-4 py-2 rounded-lg text-sidebar-foreground hover:bg-sidebar-accent/50 transition">
-              <Settings className="w-5 h-5" />
-              Settings
-            </Link>
-            <Link href="/login" className="flex items-center gap-3 px-4 py-2 rounded-lg text-sidebar-foreground hover:bg-sidebar-accent/50 transition">
-              <LogOut className="w-5 h-5" />
-              Logout
-            </Link>
-          </div>
-        </div>
+    <div className="p-6 max-w-5xl mx-auto space-y-6">
+      <div>
+        <h1 className="text-xl font-semibold text-gray-900">Analytics</h1>
+        <p className="text-sm text-gray-500 mt-0.5">Platform performance overview</p>
       </div>
 
-      {/* Main Content */}
-      <div className="md:ml-64">
-        {/* Top Bar */}
-        <div className="sticky top-0 z-30 border-b border-border bg-background/95 backdrop-blur px-4 sm:px-6 py-4 flex items-center justify-between">
-          <h1 className="text-2xl font-bold">Analytics & Reports</h1>
-          <Button variant="outline" size="sm">
-            <Download className="w-4 h-4 mr-2" />
-            Export
-          </Button>
-        </div>
-
-        {/* Content */}
-        <div className="p-4 sm:p-6 space-y-8">
-          {/* Key Metrics */}
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-            {[
-              { label: 'Total Volunteers', value: mockAnalytics.totalVolunteers, icon: Users, color: 'text-primary' },
-              { label: 'Active Requests', value: mockAnalytics.activeRequests, icon: AlertCircle, color: 'text-orange-500' },
-              { label: 'Completed Tasks', value: mockAnalytics.completedTasks, icon: Award, color: 'text-green-500' },
-              { label: 'Avg Reliability', value: `${mockAnalytics.averageReliability}%`, icon: TrendingUp, color: 'text-secondary' },
-              { label: 'Total Impact', value: mockAnalytics.totalImpact, icon: Target, color: 'text-accent' },
-            ].map((stat, idx) => (
-              <Card key={idx} className="p-4 space-y-2">
-                <div className="flex items-center justify-between">
-                  <p className="text-xs text-muted-foreground font-medium">{stat.label}</p>
-                  <stat.icon className={`w-4 h-4 ${stat.color}`} />
-                </div>
-                <p className="text-xl font-bold">{stat.value}</p>
-              </Card>
-            ))}
-          </div>
-
-          {/* Main Charts Grid */}
-          <div className="grid gap-6 lg:grid-cols-2">
-            {/* Volunteer Growth */}
-            <Card className="p-6">
-              <h3 className="font-semibold mb-4">Volunteer & Task Growth</h3>
-              <ResponsiveContainer width="100%" height={300}>
-                <AreaChart data={mockAnalytics.weeklyData}>
-                  <defs>
-                    <linearGradient id="colorVolunteers" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="var(--color-primary)" stopOpacity={0.8} />
-                      <stop offset="95%" stopColor="var(--color-primary)" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
-                  <XAxis dataKey="week" />
-                  <YAxis />
-                  <Tooltip />
-                  <Area
-                    type="monotone"
-                    dataKey="volunteers"
-                    stroke="var(--color-primary)"
-                    fillOpacity={1}
-                    fill="url(#colorVolunteers)"
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </Card>
-
-            {/* Weekly Performance */}
-            <Card className="p-6">
-              <h3 className="font-semibold mb-4">Weekly Performance</h3>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={mockAnalytics.weeklyData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
-                  <XAxis dataKey="week" />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
-                  <Bar dataKey="requests" fill="var(--color-secondary)" />
-                  <Bar dataKey="completed" fill="var(--color-accent)" />
-                </BarChart>
-              </ResponsiveContainer>
-            </Card>
-
-            {/* Skills Distribution */}
-            <Card className="p-6">
-              <h3 className="font-semibold mb-4">Volunteers by Skill</h3>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={skillsData} layout="vertical">
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
-                  <XAxis type="number" />
-                  <YAxis type="category" dataKey="name" width={120} />
-                  <Tooltip />
-                  <Bar dataKey="value" fill="var(--color-primary)" />
-                </BarChart>
-              </ResponsiveContainer>
-            </Card>
-
-            {/* Request Status Distribution */}
-            <Card className="p-6">
-              <h3 className="font-semibold mb-4">Requests by Status</h3>
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={[
-                      { name: 'In Progress', value: 5 },
-                      { name: 'Open', value: 4 },
-                      { name: 'Completed', value: 8 },
-                    ]}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ name, value }) => `${name}: ${value}`}
-                    outerRadius={100}
-                    fill="#8884d8"
-                    dataKey="value"
-                  >
-                    {COLORS.map((color) => (
-                      <Cell key={`cell-${color}`} fill={color} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            </Card>
-          </div>
-
-          {/* Detailed Metrics */}
-          <Card className="p-6">
-            <h3 className="font-semibold mb-6">Request Metrics</h3>
-            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {[
-                {
-                  label: 'Critical Requests',
-                  value: mockAnalytics.requestsByUrgency.critical,
-                  description: 'Urgent needs requiring immediate attention',
-                },
-                {
-                  label: 'High Priority',
-                  value: mockAnalytics.requestsByUrgency.high,
-                  description: 'Important requests due within 1-2 weeks',
-                },
-                {
-                  label: 'Average Matching Score',
-                  value: '94.2%',
-                  description: 'AI matching accuracy and volunteer fit',
-                },
-                {
-                  label: 'Volunteer Utilization',
-                  value: '87%',
-                  description: 'Percentage of active volunteers assigned',
-                },
-                {
-                  label: 'Task Completion Rate',
-                  value: '96%',
-                  description: 'Percentage of completed vs total tasks',
-                },
-                {
-                  label: 'Avg Assignment Time',
-                  value: '2.3 hrs',
-                  description: 'Time from request to assignment',
-                },
-              ].map((metric, idx) => (
-                <div key={idx} className="space-y-2 p-4 rounded-lg bg-muted/40">
-                  <p className="text-2xl font-bold text-primary">{metric.value}</p>
-                  <p className="font-medium text-sm">{metric.label}</p>
-                  <p className="text-xs text-muted-foreground">{metric.description}</p>
-                </div>
-              ))}
-            </div>
-          </Card>
-
-          {/* Impact Summary */}
-          <Card className="p-6 bg-gradient-to-br from-primary/5 to-secondary/5 border-primary/20">
-            <h3 className="font-semibold mb-4 text-lg">Impact Summary</h3>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <p className="text-sm text-muted-foreground">Cumulative Impact</p>
-                <p className="text-3xl font-bold text-primary">{mockAnalytics.totalImpact}</p>
-                <p className="text-xs text-muted-foreground">Total lives helped across all initiatives</p>
+      {/* Stat Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+        {STAT_CARDS.map(c => (
+          <div key={c.label} className={`${c.bg} rounded-xl p-4 border border-gray-100`}>
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-xs text-gray-500 mb-1">{c.label}</p>
+                <p className={`text-2xl font-bold ${c.color}`}>{c.value}</p>
               </div>
-              <div className="space-y-2">
-                <p className="text-sm text-muted-foreground">Community Engagement</p>
-                <p className="text-3xl font-bold text-secondary">{mockAnalytics.totalVolunteers}</p>
-                <p className="text-xs text-muted-foreground">Active volunteers in the network</p>
-              </div>
+              <span className="text-xl">{c.emoji}</span>
             </div>
-          </Card>
-        </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Line Chart — Requests over time */}
+      <div className="bg-white border border-gray-200 rounded-xl p-5">
+        <h2 className="text-sm font-semibold text-gray-700 mb-4">Requests — Last 14 Days</h2>
+        {data.requests_by_day.length === 0 ? (
+          <div className="h-48 flex items-center justify-center text-gray-300 text-sm">No data yet</div>
+        ) : (
+          <ResponsiveContainer width="100%" height={200}>
+            <LineChart data={data.requests_by_day} margin={{ top: 0, right: 8, left: -20, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+              <XAxis
+                dataKey="date"
+                tick={{ fontSize: 10, fill: "#9ca3af" }}
+                tickFormatter={d => d.slice(5)}
+                axisLine={false}
+                tickLine={false}
+              />
+              <YAxis
+                tick={{ fontSize: 10, fill: "#9ca3af" }}
+                allowDecimals={false}
+                axisLine={false}
+                tickLine={false}
+              />
+              <Tooltip
+                contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e5e7eb" }}
+                labelFormatter={l => `Date: ${l}`}
+              />
+              <Line
+                type="monotone"
+                dataKey="count"
+                stroke="#6366f1"
+                strokeWidth={2}
+                dot={{ r: 3, fill: "#6366f1" }}
+                activeDot={{ r: 5 }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        )}
+      </div>
+
+      {/* Bar Chart — Skill demand */}
+      <div className="bg-white border border-gray-200 rounded-xl p-5">
+        <h2 className="text-sm font-semibold text-gray-700 mb-4">Demand by Skill Type</h2>
+        {data.top_skills_demand.length === 0 ? (
+          <div className="h-48 flex items-center justify-center text-gray-300 text-sm">No data yet</div>
+        ) : (
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={data.top_skills_demand} margin={{ top: 0, right: 8, left: -20, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
+              <XAxis
+                dataKey="skill"
+                tick={{ fontSize: 10, fill: "#9ca3af" }}
+                axisLine={false}
+                tickLine={false}
+              />
+              <YAxis
+                tick={{ fontSize: 10, fill: "#9ca3af" }}
+                allowDecimals={false}
+                axisLine={false}
+                tickLine={false}
+              />
+              <Tooltip
+                contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e5e7eb" }}
+              />
+              <Bar dataKey="count" radius={[6, 6, 0, 0]}>
+                {data.top_skills_demand.map((_, i) => (
+                  <Cell key={i} fill={BAR_COLORS[i % BAR_COLORS.length]} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        )}
       </div>
     </div>
-  );
+  )
 }

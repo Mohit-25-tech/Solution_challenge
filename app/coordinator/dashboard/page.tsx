@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { requestAPI, matchingAPI, dashboardAPI, MatchCandidate, AutoAssignResult } from '@/lib/api'
+import { requestAPI, matchingAPI, dashboardAPI } from '@/lib/api'
 import { useAuth } from '@/lib/auth-context'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -13,15 +13,27 @@ interface DashboardStats {
   total_volunteers: number
   active_requests: number
   completed_tasks: number
+  completed_requests?: number
   total_assignments: number
   average_reliability: number
   pending_assignments: number
+  active_assignments_now?: number
+  volunteers_on_ground?: number
+}
+
+interface MatchCandidate {
+  volunteer_id: number
+  volunteer_name: string
+  match_score: number
+  reason: string
+  distance_km: number
+  breakdown?: any
 }
 
 export default function CoordinatorDashboard() {
   const { user } = useAuth()
   const [stats, setStats] = useState<DashboardStats | null>(null)
-  const [requests, setRequests] = useState([])
+  const [requests, setRequests] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedRequest, setSelectedRequest] = useState<any>(null)
   const [matchCandidates, setMatchCandidates] = useState<MatchCandidate[]>([])
@@ -33,13 +45,13 @@ export default function CoordinatorDashboard() {
     const loadData = async () => {
       try {
         const statsResult = await dashboardAPI.getStats()
-        if (statsResult.data) {
-          setStats(statsResult.data as DashboardStats)
+        if (statsResult) {
+          setStats(statsResult as DashboardStats)
         }
 
-        const requestsResult = await requestAPI.getAll(0, 100)
-        if (requestsResult.data) {
-          setRequests((requestsResult.data as any[]) || [])
+        const requestsResult = await requestAPI.getAll({ offset: 0, limit: 100 })
+        if (requestsResult.items) {
+          setRequests((requestsResult.items as any[]) || [])
         }
       } catch (error) {
         console.error('Error loading dashboard:', error)
@@ -57,8 +69,8 @@ export default function CoordinatorDashboard() {
 
     try {
       const result = await matchingAPI.getMatches(request.id, 10)
-      if ((result.data as any)?.candidates) {
-        setMatchCandidates((result.data as any).candidates)
+      if (result.candidates) {
+        setMatchCandidates(result.candidates)
       }
     } catch (error) {
       console.error('Error getting matches:', error)
@@ -71,8 +83,7 @@ export default function CoordinatorDashboard() {
     if (!selectedRequest) return
 
     try {
-      const result = await matchingAPI.autoAssign(selectedRequest.id)
-      const assignResult = result.data as AutoAssignResult
+      const assignResult = await matchingAPI.assignBest(selectedRequest.id)
 
       if (assignResult.success) {
         setAssignmentStatus({
@@ -86,10 +97,10 @@ export default function CoordinatorDashboard() {
           message: assignResult.message,
         })
       }
-    } catch (error) {
+    } catch (error: any) {
       setAssignmentStatus({
         success: false,
-        message: 'Failed to assign volunteer',
+        message: error.message || 'Failed to assign volunteer',
       })
     }
   }
@@ -110,32 +121,32 @@ export default function CoordinatorDashboard() {
         <p className="text-muted-foreground">Welcome back, {user?.name}! Monitor and manage volunteer requests.</p>
       </div>
 
-      {/* Stats Grid */}
+      {/* Live Command-Center Stats Bar */}
       {stats && (
-        <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
-          <Card className="p-4">
-            <p className="text-xs text-muted-foreground font-medium mb-1">Volunteers</p>
-            <p className="text-2xl font-bold text-primary">{stats.total_volunteers}</p>
+        <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-3">
+          <Card className="p-4 border-l-4 border-l-blue-500">
+            <p className="text-xs text-muted-foreground font-medium mb-1">Total Volunteers</p>
+            <p className="text-2xl font-bold text-gray-900">{stats.total_volunteers}</p>
           </Card>
-          <Card className="p-4">
+          <Card className="p-4 border-l-4 border-l-green-500 bg-green-50/30">
+            <p className="text-xs text-muted-foreground font-medium mb-1">On Ground Now</p>
+            <p className="text-2xl font-bold text-green-700">{stats.volunteers_on_ground || 0}</p>
+          </Card>
+          <Card className="p-4 border-l-4 border-l-amber-500">
             <p className="text-xs text-muted-foreground font-medium mb-1">Active Requests</p>
-            <p className="text-2xl font-bold text-blue-500">{stats.active_requests}</p>
+            <p className="text-2xl font-bold text-amber-600">{stats.active_requests}</p>
           </Card>
-          <Card className="p-4">
-            <p className="text-xs text-muted-foreground font-medium mb-1">Completed</p>
-            <p className="text-2xl font-bold text-green-500">{stats.completed_tasks}</p>
+          <Card className="p-4 border-l-4 border-l-orange-500 bg-orange-50/30">
+            <p className="text-xs text-muted-foreground font-medium mb-1">Pending Assigns</p>
+            <p className="text-2xl font-bold text-orange-600">{stats.active_assignments_now || 0}</p>
           </Card>
-          <Card className="p-4">
-            <p className="text-xs text-muted-foreground font-medium mb-1">Assignments</p>
-            <p className="text-2xl font-bold text-purple-500">{stats.total_assignments}</p>
+          <Card className="p-4 border-l-4 border-l-emerald-500">
+            <p className="text-xs text-muted-foreground font-medium mb-1">Requests Done</p>
+            <p className="text-2xl font-bold text-emerald-600">{stats.completed_requests || 0}</p>
           </Card>
-          <Card className="p-4">
-            <p className="text-xs text-muted-foreground font-medium mb-1">Pending</p>
-            <p className="text-2xl font-bold text-orange-500">{stats.pending_assignments}</p>
-          </Card>
-          <Card className="p-4">
+          <Card className="p-4 border-l-4 border-l-purple-500">
             <p className="text-xs text-muted-foreground font-medium mb-1">Avg Reliability</p>
-            <p className="text-2xl font-bold text-emerald-500">{(stats.average_reliability * 100).toFixed(0)}%</p>
+            <p className="text-2xl font-bold text-purple-600">{(stats.average_reliability * 100).toFixed(0)}%</p>
           </Card>
         </div>
       )}

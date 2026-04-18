@@ -7,8 +7,8 @@ export interface User {
   id: number
   name: string
   email: string
-  role: 'ngo' | 'volunteer'
-  created_at: string
+  role: 'ngo' | 'volunteer' | 'admin'
+  volunteer_id?: number | null   // FIX 1: critical for volunteer-side features (profile, portal, QR, analytics)
 }
 
 interface AuthContextType {
@@ -29,50 +29,55 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Load from localStorage on mount
   useEffect(() => {
-    const savedToken = localStorage.getItem('auth_token')
-    const savedUser = localStorage.getItem('auth_user')
+    try {
+      const savedToken = localStorage.getItem('auth_token') || localStorage.getItem('token')
+      const savedUser = localStorage.getItem('auth_user') || localStorage.getItem('user')
 
-    if (savedToken && savedUser) {
-      setToken(savedToken)
-      setUser(JSON.parse(savedUser))
+      if (savedToken && savedUser) {
+        setToken(savedToken)
+        setUser(JSON.parse(savedUser))
+      }
+    } catch {
+      // Corrupted localStorage — clear it
+      localStorage.removeItem('auth_token')
+      localStorage.removeItem('auth_user')
+      localStorage.removeItem('token')
+      localStorage.removeItem('user')
     }
-
     setLoading(false)
   }, [])
 
   const login = async (email: string, password: string) => {
     try {
-      const result = await authAPI.login(email, password)
-      if (result.error) {
-        return { success: false, error: result.error }
-      }
+      // authAPI.login accepts { email, password } object
+      const result = await authAPI.login({ email, password })
 
-      const data = result.data as any
-      const newToken = data.access_token
-      const newUser = data.user
+      // API returns { access_token, token_type, user: { id, name, email, role, volunteer_id } }
+      const newToken: string = result.access_token
+      const newUser: User = result.user   // volunteer_id is already in result.user from backend
 
       setToken(newToken)
       setUser(newUser)
+
+      // Store under both key names for compatibility
       localStorage.setItem('auth_token', newToken)
+      localStorage.setItem('token', newToken)
       localStorage.setItem('auth_user', JSON.stringify(newUser))
+      localStorage.setItem('user', JSON.stringify(newUser))
 
       return { success: true, user: newUser }
-    } catch (error) {
-      return { success: false, error: 'Login failed' }
+    } catch (error: unknown) {
+      return { success: false, error: (error as Error).message || 'Login failed' }
     }
   }
 
   const register = async (name: string, email: string, password: string, role: 'ngo' | 'volunteer') => {
     try {
-      const result = await authAPI.register(name, email, password, role)
-      if (result.error) {
-        return { success: false, error: result.error }
-      }
-
+      await authAPI.register({ name, email, password, role })
       // Auto-login after registration
       return login(email, password)
-    } catch (error) {
-      return { success: false, error: 'Registration failed' }
+    } catch (error: unknown) {
+      return { success: false, error: (error as Error).message || 'Registration failed' }
     }
   }
 
@@ -81,6 +86,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setToken(null)
     localStorage.removeItem('auth_token')
     localStorage.removeItem('auth_user')
+    localStorage.removeItem('token')
+    localStorage.removeItem('user')
   }
 
   return (

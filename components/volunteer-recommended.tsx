@@ -1,10 +1,17 @@
 'use client'
-
-import { MatchCandidate } from '@/lib/api'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { MapPin, Zap, AlertCircle, Star } from 'lucide-react'
+
+interface MatchCandidate {
+  volunteer_id: number;
+  match_score: number;
+  reason: string;
+  distance_km: number;
+  request_id?: number;
+  breakdown?: any;
+}
 
 interface VolunteerRecommendedProps {
   task: MatchCandidate | null

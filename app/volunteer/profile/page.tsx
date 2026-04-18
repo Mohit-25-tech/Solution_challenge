@@ -1,283 +1,267 @@
-'use client';
+"use client"
+import { useEffect, useState, useCallback } from "react"
+import { volunteerAPI, analyticsAPI } from "@/lib/api"
+import { useAuth } from "@/lib/auth-context"
+import { AvailabilityGrid } from "@/components/availability-grid"
+import { BadgeList } from "@/components/badge-chip"
+import { PageSkeleton } from "@/components/page-skeleton"
 
-import { useState } from 'react';
-import Link from 'next/link';
-import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Users, MapPin, Clock, Award, Edit2, Save, X, LogOut, Settings, Home, Briefcase, Star, Heart, Check } from 'lucide-react';
-import { mockVolunteers } from '@/lib/mock-data';
+type HistoryItem = {
+  assignment_id: number
+  request_title: string
+  request_type: string
+  match_score: number
+  status: string
+  assigned_at: string
+  completed_at?: string
+}
+
+type Stats = {
+  tasks_completed: number
+  acceptance_rate: number
+  avg_response_time_minutes?: number
+  badges: string[]
+}
+
+type VolunteerData = {
+  skills: string[]
+  is_available: boolean
+  reliability_score: number
+  bio?: string
+  phone?: string
+  badges?: string[]
+  availability_slots?: Record<string, string[]>
+}
+
+const STATUS_COLORS: Record<string, string> = {
+  completed: "bg-green-100 text-green-800",
+  accepted: "bg-blue-100 text-blue-800",
+  assigned: "bg-yellow-100 text-yellow-800",
+  rejected: "bg-red-100 text-red-700",
+  expired: "bg-gray-100 text-gray-500",
+}
 
 export default function VolunteerProfilePage() {
-  const [currentVolunteer] = useState(mockVolunteers[0]);
-  const [isEditing, setIsEditing] = useState(false);
-  const [profile, setProfile] = useState({
-    name: currentVolunteer.name,
-    email: currentVolunteer.email,
-    phone: currentVolunteer.phone,
-    location: currentVolunteer.location,
-    availability: currentVolunteer.availability,
-  });
+  const { user } = useAuth()
+  const [volunteer, setVolunteer] = useState<VolunteerData | null>(null)
+  const [stats, setStats] = useState<Stats | null>(null)
+  const [history, setHistory] = useState<HistoryItem[]>([])
+  const [slots, setSlots] = useState<Partial<Record<string, string[]>>>({})
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [activeTab, setActiveTab] = useState<"profile" | "history">("profile")
 
-  const handleSave = () => {
-    setIsEditing(false);
-  };
+  const load = useCallback(async () => {
+    const volunteerId = user?.volunteer_id
+    if (!volunteerId) {
+      setLoading(false)
+      return
+    }
+    setLoading(true)
+    try {
+      const [vol, stat, hist] = await Promise.all([
+        volunteerAPI.getById(volunteerId),
+        analyticsAPI.getVolunteerStats(volunteerId),
+        volunteerAPI.getHistory(volunteerId),
+      ])
+      setVolunteer(vol)
+      setStats(stat)
+      setHistory(hist)
+      setSlots(vol.availability_slots || {})
+    } finally {
+      setLoading(false)
+    }
+  }, [user?.volunteer_id])
+
+  useEffect(() => { load() }, [load])
+
+  const handleSaveProfile = async () => {
+    if (!user?.volunteer_id) return
+    setSaving(true)
+    try {
+      await volunteerAPI.update(user.volunteer_id, { availability_slots: slots })
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2500)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleToggleAvailable = async () => {
+    if (!user?.volunteer_id || !volunteer) return
+    const newVal = !volunteer.is_available
+    setVolunteer({ ...volunteer, is_available: newVal })
+    try {
+      await volunteerAPI.toggleAvailability(user.volunteer_id, newVal)
+    } catch {
+      setVolunteer({ ...volunteer, is_available: !newVal })
+    }
+  }
+
+  if (!user?.volunteer_id && !loading) {
+    return (
+      <div className="p-6 text-center py-20">
+        <p className="text-gray-400 text-sm">No volunteer profile linked to your account.</p>
+        <p className="text-xs text-gray-300 mt-1">Please contact support or create a volunteer profile.</p>
+      </div>
+    )
+  }
+
+  if (loading) return <div className="p-6"><PageSkeleton rows={6} /></div>
+  if (!volunteer) return null
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Sidebar */}
-      <div className="fixed left-0 top-0 h-screen w-64 bg-sidebar border-r border-sidebar-border hidden md:block">
-        <div className="p-6 space-y-8">
-          <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground font-bold">
-              V
-            </div>
-            <span className="font-semibold text-sidebar-foreground">VolunteerMatch</span>
-          </div>
-
-          <nav className="space-y-2">
-            <Link href="/volunteer/portal" className="flex items-center gap-3 px-4 py-2 rounded-lg text-sidebar-foreground hover:bg-sidebar-accent/50 transition">
-              <Home className="w-5 h-5" />
-              Dashboard
-            </Link>
-            <Link href="/volunteer/available" className="flex items-center gap-3 px-4 py-2 rounded-lg text-sidebar-foreground hover:bg-sidebar-accent/50 transition">
-              <Briefcase className="w-5 h-5" />
-              Available Tasks
-            </Link>
-            <Link href="/volunteer/profile" className="flex items-center gap-3 px-4 py-2 rounded-lg bg-sidebar-accent text-sidebar-accent-foreground font-medium">
-              <Award className="w-5 h-5" />
-              My Profile
-            </Link>
-          </nav>
-
-          <div className="pt-8 border-t border-sidebar-border space-y-2">
-            <Link href="#" className="flex items-center gap-3 px-4 py-2 rounded-lg text-sidebar-foreground hover:bg-sidebar-accent/50 transition">
-              <Settings className="w-5 h-5" />
-              Settings
-            </Link>
-            <Link href="/login" className="flex items-center gap-3 px-4 py-2 rounded-lg text-sidebar-foreground hover:bg-sidebar-accent/50 transition">
-              <LogOut className="w-5 h-5" />
-              Logout
-            </Link>
-          </div>
+    <div className="p-6 max-w-2xl mx-auto space-y-5">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-semibold text-gray-900">My Profile</h1>
+          <p className="text-sm text-gray-500">{user?.name}</p>
         </div>
+        <button
+          onClick={handleToggleAvailable}
+          className={`text-xs px-3 py-1.5 rounded-lg border font-medium transition-colors ${
+            volunteer.is_available
+              ? "border-green-300 text-green-700 bg-green-50 hover:bg-green-100"
+              : "border-gray-200 text-gray-600 hover:bg-gray-50"
+          }`}
+        >
+          {volunteer.is_available ? "● Available" : "○ Unavailable"}
+        </button>
       </div>
 
-      {/* Main Content */}
-      <div className="md:ml-64">
-        {/* Top Bar */}
-        <div className="sticky top-0 z-30 border-b border-border bg-background/95 backdrop-blur px-4 sm:px-6 py-4 flex items-center justify-between">
-          <h1 className="text-2xl font-bold">My Profile</h1>
-          {!isEditing ? (
-            <Button onClick={() => setIsEditing(true)} size="sm">
-              <Edit2 className="w-4 h-4 mr-2" />
-              Edit Profile
-            </Button>
-          ) : (
-            <div className="flex gap-2">
-              <Button onClick={handleSave} size="sm">
-                <Save className="w-4 h-4 mr-2" />
-                Save
-              </Button>
-              <Button onClick={() => setIsEditing(false)} variant="outline" size="sm">
-                <X className="w-4 h-4" />
-              </Button>
-            </div>
-          )}
+      {/* Badges */}
+      {volunteer.badges && volunteer.badges.length > 0 && (
+        <div className="bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-100 rounded-xl p-4">
+          <p className="text-xs font-medium text-gray-500 mb-3">🏅 Badges Earned</p>
+          <BadgeList badges={volunteer.badges} />
         </div>
+      )}
 
-        {/* Content */}
-        <div className="p-4 sm:p-6 space-y-6">
-          {/* Profile Header */}
-          <Card className="p-6 bg-gradient-to-br from-primary/5 to-secondary/5 border-primary/20">
-            <div className="space-y-6">
-              <div className="flex items-start justify-between">
-                <div className="space-y-2">
-                  {isEditing ? (
-                    <Input
-                      value={profile.name}
-                      onChange={(e) => setProfile({ ...profile, name: e.target.value })}
-                      className="text-2xl font-bold h-auto py-1"
-                    />
-                  ) : (
-                    <h2 className="text-3xl font-bold">{currentVolunteer.name}</h2>
-                  )}
-                </div>
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-4">
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground font-medium">Reliability Score</p>
-                  <p className="text-3xl font-bold text-primary flex items-center gap-2">
-                    {currentVolunteer.reliabilityScore}
-                    <Star className="w-6 h-6 text-yellow-500 fill-yellow-500" />
-                  </p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground font-medium">Tasks Completed</p>
-                  <p className="text-3xl font-bold text-secondary">{currentVolunteer.tasksCompleted}</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground font-medium">Skills</p>
-                  <p className="text-3xl font-bold text-accent">{currentVolunteer.skills.length}</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground font-medium">Status</p>
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-green-500" />
-                    <p className="font-semibold text-green-700">Active</p>
-                  </div>
-                </div>
-              </div>
+      {/* Stats */}
+      {stats && (
+        <div className="grid grid-cols-3 gap-3">
+          {[
+            { label: "Tasks done", value: stats.tasks_completed, emoji: "✅" },
+            { label: "Acceptance", value: `${stats.acceptance_rate}%`, emoji: "📊" },
+            {
+              label: "Avg response",
+              value: stats.avg_response_time_minutes
+                ? `${stats.avg_response_time_minutes.toFixed(1)}m`
+                : "—",
+              emoji: "⚡"
+            },
+          ].map(c => (
+            <div key={c.label} className="bg-white border border-gray-200 rounded-xl p-3 text-center">
+              <div className="text-lg mb-0.5">{c.emoji}</div>
+              <p className="text-xl font-bold text-gray-900">{c.value}</p>
+              <p className="text-[10px] text-gray-400 mt-0.5">{c.label}</p>
             </div>
-          </Card>
+          ))}
+        </div>
+      )}
 
-          {/* Contact Information */}
-          <Card className="p-6">
-            <h3 className="font-semibold mb-4 flex items-center gap-2">
-              <Users className="w-5 h-5" />
-              Contact Information
-            </h3>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-muted-foreground">Email</label>
-                {isEditing ? (
-                  <Input
-                    type="email"
-                    value={profile.email}
-                    onChange={(e) => setProfile({ ...profile, email: e.target.value })}
-                  />
-                ) : (
-                  <p className="text-foreground">{currentVolunteer.email}</p>
-                )}
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-muted-foreground">Phone</label>
-                {isEditing ? (
-                  <Input
-                    type="tel"
-                    value={profile.phone}
-                    onChange={(e) => setProfile({ ...profile, phone: e.target.value })}
-                  />
-                ) : (
-                  <p className="text-foreground">{currentVolunteer.phone}</p>
-                )}
-              </div>
-            </div>
-          </Card>
+      {/* Tabs */}
+      <div className="flex gap-1 bg-gray-100 p-1 rounded-lg w-fit">
+        {(["profile", "history"] as const).map(t => (
+          <button
+            key={t}
+            onClick={() => setActiveTab(t)}
+            className={`px-3 py-1 text-xs rounded-md font-medium capitalize transition-colors ${
+              activeTab === t ? "bg-white shadow-sm text-gray-900" : "text-gray-500"
+            }`}
+          >
+            {t === "history" ? `History (${history.length})` : "Profile"}
+          </button>
+        ))}
+      </div>
 
-          {/* Location & Availability */}
-          <Card className="p-6">
-            <h3 className="font-semibold mb-4">Availability & Location</h3>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                  <MapPin className="w-4 h-4" />
-                  Location
-                </label>
-                {isEditing ? (
-                  <Input
-                    value={profile.location}
-                    onChange={(e) => setProfile({ ...profile, location: e.target.value })}
-                  />
-                ) : (
-                  <p className="text-foreground">{currentVolunteer.location}</p>
-                )}
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                  <Clock className="w-4 h-4" />
-                  Availability
-                </label>
-                {isEditing ? (
-                  <select
-                    value={profile.availability}
-                    onChange={(e) => setProfile({ ...profile, availability: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg border border-border bg-card text-foreground"
-                  >
-                    <option>Weekdays</option>
-                    <option>Weekends</option>
-                    <option>Full-time</option>
-                    <option>Evenings</option>
-                    <option>Flexible</option>
-                  </select>
-                ) : (
-                  <p className="text-foreground">{currentVolunteer.availability}</p>
-                )}
-              </div>
-            </div>
-          </Card>
-
-          {/* Skills & Certifications */}
-          <Card className="p-6">
-            <h3 className="font-semibold mb-4">Skills & Certifications</h3>
-            <div className="space-y-4">
-              <div className="flex flex-wrap gap-2">
-                {currentVolunteer.skills.map((skill) => (
-                  <span key={skill} className="px-4 py-2 rounded-lg bg-primary/20 text-primary font-medium text-sm flex items-center gap-2">
-                    <Check className="w-4 h-4" />
-                    {skill}
-                  </span>
-                ))}
-              </div>
-              {isEditing && (
-                <Button variant="outline" className="w-full">
-                  + Add Skills
-                </Button>
+      {/* Profile Tab */}
+      {activeTab === "profile" && (
+        <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-5">
+          {/* Skills */}
+          <div>
+            <p className="text-xs font-medium text-gray-500 mb-2">Skills</p>
+            <div className="flex flex-wrap gap-1">
+              {(volunteer.skills || []).map(s => (
+                <span key={s} className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full capitalize font-medium">
+                  {s.replace(/_/g, " ")}
+                </span>
+              ))}
+              {(volunteer.skills || []).length === 0 && (
+                <span className="text-xs text-gray-400">No skills listed</span>
               )}
             </div>
-          </Card>
-
-          {/* Activity History */}
-          <Card className="p-6">
-            <h3 className="font-semibold mb-4 flex items-center gap-2">
-              <Heart className="w-5 h-5 text-red-500" />
-              Recent Activity
-            </h3>
-            <div className="space-y-3">
-              {[
-                { date: '2024-05-12', action: 'Completed Medical Assistance Request' },
-                { date: '2024-05-08', action: 'Applied to Community Center Renovation' },
-                { date: '2024-05-05', action: 'Completed Food Distribution Coordination' },
-                { date: '2024-04-28', action: 'Updated profile skills' },
-                { date: '2024-04-20', action: 'Completed Youth Mentorship Program' },
-              ].map((activity, idx) => (
-                <div key={idx} className="flex items-start justify-between border-b border-border pb-3 last:border-0">
-                  <p className="text-foreground">{activity.action}</p>
-                  <p className="text-xs text-muted-foreground">{activity.date}</p>
-                </div>
-              ))}
-            </div>
-          </Card>
-
-          {/* Stats & Metrics */}
-          <div className="grid gap-4 sm:grid-cols-3">
-            {[
-              {
-                label: 'Total Hours',
-                value: '156',
-                icon: Clock,
-              },
-              {
-                label: 'People Helped',
-                value: '340+',
-                icon: Users,
-              },
-              {
-                label: 'Avg Rating',
-                value: '4.9/5',
-                icon: Star,
-              },
-            ].map((stat, idx) => (
-              <Card key={idx} className="p-4 space-y-2 text-center">
-                <stat.icon className="w-6 h-6 mx-auto text-primary" />
-                <p className="text-sm text-muted-foreground">{stat.label}</p>
-                <p className="text-2xl font-bold">{stat.value}</p>
-              </Card>
-            ))}
           </div>
+
+          {/* Reliability */}
+          <div>
+            <div className="flex justify-between items-center mb-1.5">
+              <p className="text-xs font-medium text-gray-500">Reliability Score</p>
+              <span className="text-xs font-semibold text-gray-700">
+                {(volunteer.reliability_score * 100).toFixed(0)}%
+              </span>
+            </div>
+            <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-blue-500 rounded-full transition-all"
+                style={{ width: `${volunteer.reliability_score * 100}%` }}
+              />
+            </div>
+          </div>
+
+          {/* Availability Grid */}
+          <div>
+            <p className="text-xs font-medium text-gray-500 mb-3">Weekly Availability</p>
+            <AvailabilityGrid value={slots} onChange={setSlots} />
+          </div>
+
+          {/* Save */}
+          <button
+            onClick={handleSaveProfile}
+            disabled={saving}
+            className={`w-full text-sm py-2 rounded-lg font-medium transition-colors ${
+              saved
+                ? "bg-green-50 text-green-700 border border-green-200"
+                : "bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
+            }`}
+          >
+            {saved ? "✓ Saved!" : saving ? "Saving..." : "Save Changes"}
+          </button>
         </div>
-      </div>
+      )}
+
+      {/* History Tab */}
+      {activeTab === "history" && (
+        <div className="space-y-2">
+          {history.length === 0 && (
+            <div className="text-center py-12 text-gray-400 text-sm">
+              <p className="text-2xl mb-2">📭</p>
+              No task history yet
+            </div>
+          )}
+          {history.map(h => (
+            <div key={h.assignment_id} className="bg-white border border-gray-200 rounded-xl p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900 truncate">{h.request_title}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    <span className="capitalize">{h.request_type.replace(/_/g, " ")}</span>
+                    {" · "}Score {(h.match_score * 100).toFixed(0)}%
+                    {" · "}{new Date(h.assigned_at).toLocaleDateString()}
+                  </p>
+                </div>
+                <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium flex-shrink-0 ${
+                  STATUS_COLORS[h.status] || "bg-gray-100 text-gray-500"
+                }`}>
+                  {h.status}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
-  );
+  )
 }

@@ -4,8 +4,9 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useAuth } from '@/lib/auth-context'
 import { Button } from '@/components/ui/button'
-import { LayoutDashboard, FileText, Users, Zap, Briefcase, LogOut, Menu, X } from 'lucide-react'
+import { LayoutDashboard, FileText, Users, Zap, Briefcase, LogOut, Menu, X, BarChart2 } from 'lucide-react'
 import { useState } from 'react'
+import { NotificationBell } from '@/components/notification-bell'
 
 export function Sidebar() {
   const { user, logout } = useAuth()
@@ -52,15 +53,18 @@ export function Sidebar() {
       >
         <div className="flex flex-col h-full">
           {/* Header */}
-          <div className="p-6 border-b border-border">
-            <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold">
-                V
+          <div className="p-4 border-b border-border">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-sm">
+                  VM
+                </div>
+                <div>
+                  <h1 className="text-base font-semibold leading-tight">VolunteerMatch</h1>
+                  <p className="text-xs text-muted-foreground capitalize">{user.role === 'ngo' ? 'Coordinator' : 'Volunteer'}</p>
+                </div>
               </div>
-              <div>
-                <h1 className="text-lg font-semibold">VolunteerMatch</h1>
-                <p className="text-xs text-muted-foreground capitalize">{user.role}</p>
-              </div>
+              <NotificationBell />
             </div>
           </div>
 

@@ -1,10 +1,18 @@
 'use client'
 
-import { MatchCandidate } from '@/lib/api'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { MapPin, Zap, Award, TrendingUp } from 'lucide-react'
+
+export interface MatchCandidate {
+  volunteer_id: number
+  volunteer_name: string
+  match_score: number
+  reason: string
+  distance_km: number
+  breakdown?: any
+}
 
 interface NGOMatchDisplayProps {
   candidates: MatchCandidate[]
@@ -85,27 +93,18 @@ export function NGOMatchDisplay({ candidates, onAssign, isLoading }: NGOMatchDis
               </p>
 
               {/* Distance & Reliability */}
-              <div className="flex flex-wrap gap-3 text-sm">
+              <div className="flex flex-wrap gap-3 text-sm mt-3 border-t pt-3">
                 <div className="flex items-center gap-1">
                   <MapPin className="h-4 w-4 text-muted-foreground" />
                   <span>{candidate.distance_km} km away</span>
                 </div>
-                <div className="flex items-center gap-1">
-                  <Award className="h-4 w-4 text-muted-foreground" />
-                  <span>Reliability: {(candidate.volunteer.reliability_score * 100).toFixed(0)}%</span>
-                </div>
+                {candidate.breakdown?.reliability !== undefined && (
+                  <div className="flex items-center gap-1">
+                    <Award className="h-4 w-4 text-muted-foreground" />
+                    <span>Reliability: {(candidate.breakdown.reliability * 100).toFixed(0)}%</span>
+                  </div>
+                )}
               </div>
-
-              {/* Skills */}
-              {candidate.volunteer.skills && candidate.volunteer.skills.length > 0 && (
-                <div className="mt-3 flex flex-wrap gap-1">
-                  {candidate.volunteer.skills.map((skill) => (
-                    <Badge key={skill} variant="secondary" className="lowercase">
-                      {skill}
-                    </Badge>
-                  ))}
-                </div>
-              )}
             </div>
 
             {/* Action Button */}

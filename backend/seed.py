@@ -1,183 +1,196 @@
+#!/usr/bin/env python3
 """
-Seed script to populate database with demo data.
-Generates 50 volunteers and 15 requests with realistic data.
-Run with: python seed.py
+VolunteerMatch v2.0 — Database Reset & Seed Script
+Run from backend/ directory: python seed.py
+
+STRATEGY: DROP all tables first, then recreate + seed.
+This handles schema changes (Enum→String, new columns, new tables).
 """
+import sys
+import os
 
-import random
-from datetime import datetime, timedelta
-from app.db.database import SessionLocal, engine, Base
-from app.models import User, Volunteer, Request, UserRole, RequestType, RequestStatus
-from app.routes.auth import get_password_hash
+# Add backend to path so `from app.xxx` imports work
+sys.path.insert(0, os.path.dirname(__file__))
 
-# Sample data
-VOLUNTEER_NAMES = [
-    "Sarah Chen", "James Martinez", "Amanda Wilson", "David Lee", "Maria Garcia",
-    "Robert Johnson", "Lisa Anderson", "Michael Brown", "Jennifer Taylor", "Daniel Rodriguez",
-    "Emma Martinez", "Christopher Lee", "Olivia Davis", "Matthew Harris", "Sophia Clark",
-    "Andrew White", "Ava Green", "Matthew King", "Isabella Scott", "Benjamin Lewis",
-    "Charlotte Walker", "Lucas Hall", "Amelia Allen", "Oliver Young", "Mia Hernandez",
-    "Ethan Moore", "Charlotte Jackson", "Benjamin Martin", "Amelia Perez", "Lucas Thompson",
-    "Ava White", "Mason Harris", "Isabella Martin", "Logan Thompson", "Emma Garcia",
-    "Liam Davis", "Olivia Rodriguez", "Noah Martinez", "Charlotte Hernandez", "Elijah Lopez",
-    "Amelia Gonzalez", "James Wilson", "Ava Anderson", "Benjamin Taylor", "Isabella Brown",
-    "Lucas Jones", "Emma Miller", "Mason Davis", "Charlotte Wilson", "Oliver Garcia"
-]
+from sqlalchemy import text
+from app.db.database import engine, Base
+from app.models import models     # Must import to register all models with Base
+from app.core.config import settings
 
-SKILLS = [
-    "Medical Training", "First Aid", "Nursing", "Healthcare",
-    "Construction", "Heavy Equipment", "Leadership",
-    "Logistics", "Supply Chain", "Organization",
-    "Teaching", "Childcare", "Education",
-    "Counseling", "Mental Health", "Social Services",
-    "Cooking", "Food Preparation",
-    "IT Support", "Technical Skills",
-]
-
-REQUEST_TYPES = [RequestType.medical, RequestType.food, RequestType.rescue, 
-                 RequestType.construction, RequestType.logistics, RequestType.counseling]
-
-REQUEST_TITLES = [
-    "Medical Assistance at Community Clinic",
-    "Community Center Renovation",
-    "Food Distribution Network Coordination",
-    "Youth Mentorship Program",
-    "Crisis Counseling Support",
-    "Emergency Rescue Operations",
-    "Healthcare Mobile Van Support",
-    "Elder Care Home Renovation",
-    "School Supply Distribution",
-    "Disaster Relief Coordination",
-    "Community Kitchen Assistance",
-    "Hospital Equipment Setup",
-    "Education Center Construction",
-    "Mental Health Awareness Campaign",
-    "COVID-19 Testing Support"
-]
-
-REQUEST_DESCRIPTIONS = [
-    "Help provide medical services to underserved communities.",
-    "Assist with construction and renovation of community facilities.",
-    "Organize and manage food distribution across multiple locations.",
-    "Mentor local youth in educational and life skills programs.",
-    "Provide emotional and crisis counseling support.",
-    "Assist in emergency rescue and disaster relief operations.",
-    "Support mobile healthcare delivery to remote areas.",
-    "Help renovate and repair facilities for elderly residents.",
-    "Help distribute educational materials and school supplies.",
-    "Coordinate relief efforts for disaster-affected communities.",
-    "Assist in meal preparation and distribution.",
-    "Support hospital setup and equipment installation.",
-    "Help construct educational facilities.",
-    "Support mental health awareness and education.",
-    "Assist with testing and health screening operations."
-]
-
-# Bay Area coordinates (rough radius)
-BAY_AREA_CENTER = (37.7749, -122.4194)  # San Francisco
-AREA_RANGE = 0.3  # Roughly 20-30km radius
+# Import after registering models
+from sqlalchemy.orm import Session
 
 
-def get_random_coordinates():
-    """Generate random coordinates within Bay Area."""
-    lat = BAY_AREA_CENTER[0] + random.uniform(-AREA_RANGE, AREA_RANGE)
-    lon = BAY_AREA_CENTER[1] + random.uniform(-AREA_RANGE, AREA_RANGE)
-    return lat, lon
+def reset_and_seed():
+    print("=" * 55)
+    print("VolunteerMatch v2.0 — DB Reset & Seed")
+    print("=" * 55)
+    print(f"DB URL: {settings.get_database_url()[:50]}...")
 
+    print("\n[1/4] Dropping all existing tables (clean slate)...")
+    with engine.begin() as conn:
+        conn.execute(text("DROP TABLE IF EXISTS audit_logs CASCADE"))
+        conn.execute(text("DROP TABLE IF EXISTS notifications CASCADE"))
+        conn.execute(text("DROP TABLE IF EXISTS assignments CASCADE"))
+        conn.execute(text("DROP TABLE IF EXISTS requests CASCADE"))
+        conn.execute(text("DROP TABLE IF EXISTS volunteers CASCADE"))
+        conn.execute(text("DROP TABLE IF EXISTS users CASCADE"))
+        # Drop old enum types if they exist (from previous schema)
+        for enum_type in ["userrole", "requesttype", "requeststatus", "assignmentstatus"]:
+            try:
+                conn.execute(text(f"DROP TYPE IF EXISTS {enum_type} CASCADE"))
+            except Exception:
+                pass
+    print("   [OK] All tables dropped")
 
-def seed_database():
-    """Create tables and seed with demo data."""
-    
-    # Create tables
+    print("\n[2/4] Creating tables from models...")
     Base.metadata.create_all(bind=engine)
-    db = SessionLocal()
-    
-    try:
-        # Clear existing data
-        db.query(Request).delete()
-        db.query(Volunteer).delete()
-        db.query(User).delete()
-        db.commit()
-        
-        print("Deleted existing data...")
-        
-        # Create NGO users
-        ngo_user = User(
-            name="Demo NGO",
-            email="ngo@demo.com",
-            password_hash=get_password_hash("demo123"),
-            role=UserRole.ngo
-        )
-        db.add(ngo_user)
-        db.commit()
-        print("Created NGO user...")
-        
-        # Create volunteer users and volunteers
+    print("   [OK] Tables created")
+    print("   Tables:", list(Base.metadata.tables.keys()))
+
+    print("\n[3/4] Seeding data...")
+    import bcrypt
+    from app.models.models import User, Volunteer, Request, Assignment
+
+    def hash_pw(pw: str) -> str:
+        return bcrypt.hashpw(pw.encode(), bcrypt.gensalt()).decode()
+
+    with Session(engine) as db:
+        # ─── Users ─────────────────────────────────────────────────
+        coord1 = User(name="Priya Kapoor", email="priya@ngo.org",
+                      password_hash=hash_pw("password123"), role="ngo")
+        coord2 = User(name="Arjun Singh", email="arjun@ngo.org",
+                      password_hash=hash_pw("password123"), role="ngo")
+
+        vol_users = [
+            User(name="Rajan Mehta",     email="rajan@mail.com",     password_hash=hash_pw("password123"), role="volunteer"),
+            User(name="Sunita Patel",    email="sunita@mail.com",    password_hash=hash_pw("password123"), role="volunteer"),
+            User(name="Amit Kumar",      email="amit@mail.com",      password_hash=hash_pw("password123"), role="volunteer"),
+            User(name="Kavya Nair",      email="kavya@mail.com",     password_hash=hash_pw("password123"), role="volunteer"),
+            User(name="Deepak Sharma",   email="deepak@mail.com",    password_hash=hash_pw("password123"), role="volunteer"),
+            User(name="Meena John",      email="meena@mail.com",     password_hash=hash_pw("password123"), role="volunteer"),
+            User(name="Vikas Thakur",    email="vikas@mail.com",     password_hash=hash_pw("password123"), role="volunteer"),
+            User(name="Anjali Das",      email="anjali@mail.com",    password_hash=hash_pw("password123"), role="volunteer"),
+        ]
+
+        db.add_all([coord1, coord2] + vol_users)
+        db.flush()  # Get IDs
+
+        # ─── Volunteers ─────────────────────────────────────────────
+        volunteer_profiles = [
+            (vol_users[0], [28.63, 77.22], ["medical", "first_aid"],            0.95, 12, ["first_task", "10_tasks"]),
+            (vol_users[1], [19.08, 72.88], ["construction", "logistics"],       0.88, 7,  ["first_task"]),
+            (vol_users[2], [12.97, 77.59], ["first_aid", "counseling"],         0.92, 8,  ["first_task"]),
+            (vol_users[3], [17.39, 78.48], ["food_distribution", "logistics"],  0.79, 3,  []),
+            (vol_users[4], [22.57, 88.36], ["rescue", "construction"],          0.97, 15, ["first_task", "10_tasks", "top_rated"]),
+            (vol_users[5], [13.08, 80.27], ["counseling", "medical"],           0.85, 5,  ["first_task"]),
+            (vol_users[6], [23.02, 72.57], ["logistics", "driving"],            0.91, 10, ["first_task", "10_tasks"]),
+            (vol_users[7], [18.52, 73.85], ["rescue", "first_aid"],             0.82, 6,  ["first_task"]),
+        ]
+
         volunteers = []
-        for i, name in enumerate(VOLUNTEER_NAMES):
-            user = User(
-                name=name,
-                email=f"volunteer{i+1}@demo.com",
-                password_hash=get_password_hash("demo123"),
-                role=UserRole.volunteer
-            )
-            db.add(user)
-            db.flush()
-            
-            # Create volunteer profile
-            lat, lon = get_random_coordinates()
-            volunteer_skills = random.sample(SKILLS, random.randint(1, 4))
-            
-            volunteer = Volunteer(
+        for user, (lat, lng), skills, reliability, tasks_completed, badges in volunteer_profiles:
+            v = Volunteer(
                 user_id=user.id,
                 latitude=lat,
-                longitude=lon,
-                skills=volunteer_skills,
-                is_available=random.choice([True, True, True, False]),  # 75% available
-                reliability_score=round(random.uniform(0.7, 1.0), 2),
-                tasks_completed=random.randint(0, 30),
-                tasks_rejected=random.randint(0, 5)
+                longitude=lng,
+                skills=skills,
+                is_available=True,
+                reliability_score=reliability,
+                tasks_completed=tasks_completed,
+                tasks_rejected=0,
+                badges=badges,
+                bio=f"Experienced {skills[0].replace('_', ' ')} volunteer.",
+                phone="+91-9000000001",
+                availability_slots={"mon": ["morning", "afternoon"], "wed": ["afternoon"], "sat": ["morning", "afternoon", "evening"]},
+                avg_response_time_minutes=6.5
             )
-            db.add(volunteer)
-            volunteers.append((volunteer, user))
-        
-        db.commit()
-        print(f"Created {len(VOLUNTEER_NAMES)} volunteer users...")
-        
-        # Create requests
-        for i, title in enumerate(REQUEST_TITLES):
-            lat, lon = get_random_coordinates()
-            request_type = REQUEST_TYPES[i % len(REQUEST_TYPES)]
-            
-            request = Request(
-                type=request_type,
-                title=title,
-                description=REQUEST_DESCRIPTIONS[i],
-                latitude=lat,
-                longitude=lon,
-                urgency=random.randint(1, 5),
-                status=random.choice([RequestStatus.pending, RequestStatus.assigned, RequestStatus.pending]),
-                volunteers_needed=random.randint(1, 5),
-                created_by=ngo_user.id,
-                deadline=datetime.utcnow() + timedelta(days=random.randint(1, 30))
+            db.add(v)
+            volunteers.append(v)
+        db.flush()
+
+        # ─── Requests ───────────────────────────────────────────────
+        from datetime import datetime, timedelta
+
+        requests_data = [
+            dict(type="medical",     title="Flood Camp Medical Aid",        description="Medical volunteers needed for flood relief camp in Ahmedabad",  lat=23.02, lng=72.57, urgency=5, volunteers_needed=3, status="pending",  source="ndma_feed"),
+            dict(type="rescue",      title="Search & Rescue — Chennai",     description="Cyclone rescue operations along Chennai coast",                  lat=13.08, lng=80.27, urgency=5, volunteers_needed=4, status="pending",  source="ndma_feed"),
+            dict(type="food",        title="Food Distribution — Delhi",      description="Food drive for 2000 displaced families in North Delhi",          lat=28.71, lng=77.31, urgency=3, volunteers_needed=2, status="pending",  source="internal"),
+            dict(type="construction",title="Shelter Build — Hyderabad",     description="Temporary shelter construction for earthquake victims",          lat=17.28, lng=78.39, urgency=4, volunteers_needed=2, status="assigned", source="internal"),
+            dict(type="counseling",  title="Trauma Counseling — Mumbai",    description="Mental health support volunteers needed for survivors",           lat=19.18, lng=72.94, urgency=4, volunteers_needed=2, status="pending",  source="internal"),
+            dict(type="logistics",   title="Supply Chain — Kolkata",        description="Logistics volunteers needed for relief goods distribution",       lat=22.57, lng=88.36, urgency=3, volunteers_needed=2, status="completed",source="internal"),
+            dict(type="medical",     title="First Aid Camp — Bangalore",    description="First aid station volunteers for IT park flood relief",           lat=12.97, lng=77.59, urgency=3, volunteers_needed=2, status="pending",  source="internal"),
+            dict(type="rescue",      title="River Search — Pune",           description="Search teams needed for missing persons after river flooding",    lat=18.52, lng=73.85, urgency=5, volunteers_needed=3, status="pending",  source="ndma_feed"),
+        ]
+
+        requests = []
+        for i, rd in enumerate(requests_data):
+            req = Request(
+                type=rd["type"],
+                title=rd["title"],
+                description=rd["description"],
+                latitude=rd["lat"],
+                longitude=rd["lng"],
+                urgency=rd["urgency"],
+                volunteers_needed=rd["volunteers_needed"],
+                status=rd["status"],
+                fulfilled_count=0,
+                source=rd.get("source", "internal"),
+                tags=[rd["type"], "disaster-relief"],
+                deadline=datetime.utcnow() + timedelta(hours=72 - i * 5),
+                created_by=coord1.id
             )
-            db.add(request)
-        
+            db.add(req)
+            requests.append(req)
+        db.flush()
+
+        # ─── Assignments ─────────────────────────────────────────────
+        db.add(Assignment(
+            request_id=requests[3].id,  # Shelter Build — has assigned status
+            volunteer_id=volunteers[1].id,
+            match_score=0.78,
+            status="accepted"
+        ))
+        db.add(Assignment(
+            request_id=requests[5].id,  # Supply Chain — completed
+            volunteer_id=volunteers[6].id,
+            match_score=0.85,
+            status="completed"
+        ))
+
         db.commit()
-        print(f"Created {len(REQUEST_TITLES)} requests...")
-        
-        print("\n✅ Database seeded successfully!")
-        print(f"   - {len(VOLUNTEER_NAMES)} volunteers")
-        print(f"   - {len(REQUEST_TITLES)} requests")
-        print(f"   - 1 NGO organization")
-        
-    except Exception as e:
-        print(f"❌ Error seeding database: {e}")
-        db.rollback()
-        raise
-    finally:
-        db.close()
+
+    print("   [OK] Data seeded successfully")
+    print("\n   Coordinator accounts (role: ngo):")
+    print("     priya@ngo.org / password123")
+    print("     arjun@ngo.org / password123")
+    print("\n   Volunteer accounts (role: volunteer):")
+    emails = [
+        "rajan@mail.com", "sunita@mail.com", "amit@mail.com", "kavya@mail.com",
+        "deepak@mail.com", "meena@mail.com", "vikas@mail.com", "anjali@mail.com"
+    ]
+    for e in emails:
+        print(f"     {e} / password123")
+
+    print("\n[4/4] Verification...")
+    with Session(engine) as db:
+        from app.models.models import User, Volunteer, Request, Assignment, Notification, AuditLog
+        counts = {
+            "users": db.query(User).count(),
+            "volunteers": db.query(Volunteer).count(),
+            "requests": db.query(Request).count(),
+            "assignments": db.query(Assignment).count(),
+            "notifications": db.query(Notification).count(),
+            "audit_logs": db.query(AuditLog).count(),
+        }
+    for table, count in counts.items():
+        print(f"   [OK] {table}: {count} rows")
+
+    print(f"\n{'=' * 55}")
+    print("[OK] VolunteerMatch v2.0 DB ready!")
+    print("   Run: cd backend && uvicorn app.main:app --reload")
+    print(f"{'=' * 55}")
 
 
 if __name__ == "__main__":
-    seed_database()
+    reset_and_seed()
