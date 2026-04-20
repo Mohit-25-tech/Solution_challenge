@@ -30,6 +30,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Load from localStorage on mount
   useEffect(() => {
+    // Safety timeout: force loading=false after 3s to prevent infinite spinner
+    const timeout = setTimeout(() => setLoading(false), 3000)
+
     try {
       const savedToken = localStorage.getItem('auth_token') || localStorage.getItem('token')
       const savedUser = localStorage.getItem('auth_user') || localStorage.getItem('user')
@@ -45,7 +48,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.removeItem('token')
       localStorage.removeItem('user')
     }
+
     setLoading(false)
+    clearTimeout(timeout)
   }, [])
 
   const login = async (email: string, password: string) => {
