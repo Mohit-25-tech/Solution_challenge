@@ -34,7 +34,10 @@ class Settings(BaseSettings):
 
     def get_database_url(self) -> str:
         """Returns DATABASE_URL (uppercase) if set, else database_url (lowercase)."""
-        return self.DATABASE_URL or self.database_url
+        url = self.DATABASE_URL or self.database_url
+        if url and url.startswith("postgresql://"):
+            url = url.replace("postgresql://", "postgresql+psycopg://", 1)
+        return url
 
     def get_secret_key(self) -> str:
         """Returns SECRET_KEY (uppercase) if set, else secret_key (lowercase)."""
