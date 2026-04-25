@@ -9,11 +9,18 @@ import { Input } from '@/components/ui/input';
 import { useAuth } from '@/lib/auth-context';
 import { ArrowLeft } from 'lucide-react';
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showForgot, setShowForgot] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotMsg, setForgotMsg] = useState('');
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
   const { login } = useAuth();
   const router = useRouter();
 
@@ -38,6 +45,30 @@ export default function LoginPage() {
     router.push('/volunteer/portal');
   };
 
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setForgotMsg('');
+    setForgotLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/auth/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: forgotEmail, new_password: newPassword }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setForgotMsg('✓ Password reset successfully! You can now sign in.');
+        setTimeout(() => { setShowForgot(false); setForgotMsg(''); }, 3000);
+      } else {
+        setForgotMsg(data.detail || 'Account not found with this email.');
+      }
+    } catch {
+      setForgotMsg('Something went wrong. Please try again.');
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-md space-y-6">
@@ -51,63 +82,98 @@ export default function LoginPage() {
           <p className="text-muted-foreground">Sign in to your VolunteerMatch account</p>
         </div>
 
-        <Card className="p-6 space-y-4">
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <label htmlFor="email" className="text-sm font-medium">
-                Email
-              </label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="you@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
+        {/* Forgot Password Modal */}
+        {showForgot ? (
+          <Card className="p-6 space-y-4">
+            <div className="flex items-center gap-2 mb-2">
+              <button onClick={() => { setShowForgot(false); setForgotMsg(''); }} className="text-muted-foreground hover:text-foreground transition text-sm">
+                ← Back to Login
+              </button>
             </div>
-
-            <div className="space-y-2">
-              <label htmlFor="password" className="text-sm font-medium">
-                Password
-              </label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
+            <div className="text-center mb-2">
+              <p className="text-lg font-semibold">Reset Password</p>
+              <p className="text-sm text-muted-foreground">Enter your email and a new password</p>
             </div>
+            <form onSubmit={handleForgotPassword} className="space-y-4">
+              <div className="space-y-2">
+                <label htmlFor="forgot-email" className="text-sm font-medium">Email</label>
+                <Input
+                  id="forgot-email"
+                  type="email"
+                  placeholder="you@example.com"
+                  value={forgotEmail}
+                  onChange={(e) => setForgotEmail(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <label htmlFor="new-password" className="text-sm font-medium">New Password</label>
+                <Input
+                  id="new-password"
+                  type="password"
+                  placeholder="••••••••"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  required
+                  minLength={6}
+                />
+              </div>
+              <Button type="submit" className="w-full" disabled={forgotLoading}>
+                {forgotLoading ? 'Resetting...' : 'Reset Password'}
+              </Button>
+              {forgotMsg && (
+                <p className={`text-sm ${forgotMsg.startsWith('✓') ? 'text-green-600' : 'text-red-600'}`}>
+                  {forgotMsg}
+                </p>
+              )}
+            </form>
+          </Card>
+        ) : (
+          <Card className="p-6 space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <label htmlFor="email" className="text-sm font-medium">Email</label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+              </div>
 
-            <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? 'Signing in...' : 'Sign In'}
-            </Button>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label htmlFor="password" className="text-sm font-medium">Password</label>
+                  <button
+                    type="button"
+                    onClick={() => { setShowForgot(true); setForgotEmail(email); }}
+                    className="text-xs text-primary hover:underline"
+                  >
+                    Forgot password?
+                  </button>
+                </div>
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+              </div>
 
-            {error && (
-              <p className="text-sm text-red-600">{error}</p>
-            )}
-          </form>
+              <Button type="submit" className="w-full" disabled={isLoading}>
+                {isLoading ? 'Signing in...' : 'Sign In'}
+              </Button>
 
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-border" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-card px-2 text-muted-foreground">Or continue with</span>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <Button variant="outline" className="w-full">
-              Google
-            </Button>
-            <Button variant="outline" className="w-full">
-              GitHub
-            </Button>
-          </div>
-        </Card>
+              {error && (
+                <p className="text-sm text-red-600">{error}</p>
+              )}
+            </form>
+          </Card>
+        )}
 
         <p className="text-center text-sm text-muted-foreground">
           Don&apos;t have an account?{' '}

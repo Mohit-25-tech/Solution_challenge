@@ -27,3 +27,13 @@ def get_distance_score(distance_km: float, max_distance: float = 25) -> float:
     """
     score = max(0, 1 - (distance_km / max_distance))
     return score
+
+
+def format_distance(distance_km: float) -> str:
+    """
+    Format distance for display.
+    Returns '< 0.1 km' when below 0.1, otherwise 'X.X km'.
+    """
+    if distance_km < 0.1:
+        return "< 0.1 km"
+    return f"{distance_km:.1f} km"

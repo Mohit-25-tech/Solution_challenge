@@ -1,27 +1,45 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
+import { dashboardAPI } from '@/lib/api';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Users, Target, Zap, BarChart3, Heart, Globe, Loader2 } from 'lucide-react';
 
 export default function LandingPage() {
-  const { user, loading } = useAuth();
+  const { logout, loading } = useAuth();
   const router = useRouter();
+  const [stats, setStats] = useState({
+    total_volunteers: 127,
+    completed_requests: 34,
+    active_requests: 12,
+  });
 
-  // Redirect if already logged in
   useEffect(() => {
-    if (!loading && user) {
-      if (user.role === 'ngo') {
-        router.push('/coordinator/dashboard');
-      } else {
-        router.push('/volunteer/portal');
+    const fetchStats = async () => {
+      try {
+        const data = await dashboardAPI.getStats();
+        if (data) {
+          setStats({
+            total_volunteers: data.total_volunteers || 0,
+            completed_requests: data.completed_requests || 0,
+            active_requests: data.active_requests || 0,
+          });
+        }
+      } catch (e) {
+        console.error("Failed to fetch stats", e);
       }
-    }
-  }, [user, loading, router]);
+    };
+    fetchStats();
+  }, []);
+
+  // Force logout on landing page
+  useEffect(() => {
+    logout();
+  }, [logout]);
 
   if (loading) {
     return (
@@ -74,15 +92,7 @@ export default function LandingPage() {
               Intelligently match volunteers with disaster relief requests using our advanced matching engine. No skill mismatches. No wasted time.
             </p>
             <div className="flex gap-4 justify-center flex-wrap">
-              <Link href="/signup">
-                <Button size="lg" className="gap-2">
-                  <Zap className="h-4 w-4" />
-                  Start Now
-                </Button>
-              </Link>
-              <Button variant="outline" size="lg">
-                View Demo
-              </Button>
+              {/* Buttons removed as requested */}
             </div>
           </div>
         </div>
@@ -93,16 +103,16 @@ export default function LandingPage() {
         <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-3 gap-8">
             <div className="text-center">
-              <div className="text-3xl font-bold text-primary">127</div>
-              <p className="text-sm text-muted-foreground mt-2">Volunteers Coordinated</p>
+              <div className="text-3xl font-bold text-primary">{stats.total_volunteers}</div>
+              <p className="text-sm text-muted-foreground mt-2">Registered Volunteers</p>
             </div>
             <div className="text-center">
-              <div className="text-3xl font-bold text-primary">34</div>
+              <div className="text-3xl font-bold text-primary">{stats.completed_requests}</div>
               <p className="text-sm text-muted-foreground mt-2">Requests Fulfilled</p>
             </div>
             <div className="text-center">
-              <div className="text-3xl font-bold text-primary">92%</div>
-              <p className="text-sm text-muted-foreground mt-2">Match Satisfaction</p>
+              <div className="text-3xl font-bold text-primary">{stats.active_requests}</div>
+              <p className="text-sm text-muted-foreground mt-2">Active Live Relief Efforts</p>
             </div>
           </div>
         </div>

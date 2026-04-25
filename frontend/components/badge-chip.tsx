@@ -1,31 +1,28 @@
 "use client"
 
-const BADGE_CONFIG: Record<string, { label: string; color: string; emoji: string }> = {
-  first_task:      { label: "First Mission",     color: "bg-green-100 text-green-800",   emoji: "⭐" },
-  "10_tasks":      { label: "10 Missions",        color: "bg-blue-100 text-blue-800",    emoji: "✦" },
-  top_rated:       { label: "Top Rated",          color: "bg-amber-100 text-amber-800",  emoji: "◆" },
-  rapid_responder: { label: "Rapid Responder",    color: "bg-purple-100 text-purple-800", emoji: "⚡" },
-  veteran:         { label: "Veteran",            color: "bg-red-100 text-red-800",      emoji: "🏅" },
+const BADGE_META: Record<string, { emoji: string; label: string; glow: string }> = {
+  first_task: { emoji: "🌱", label: "First Task", glow: "badge-glow-purple" },
+  "10_tasks": { emoji: "🔥", label: "10 Tasks", glow: "badge-glow-amber" },
+  "50_tasks": { emoji: "⭐", label: "50 Tasks", glow: "badge-glow-amber" },
+  top_rated: { emoji: "💎", label: "Top Rated", glow: "badge-glow-purple" },
+  rapid_responder: { emoji: "⚡", label: "Rapid Responder", glow: "badge-glow-red" },
+  community_leader: { emoji: "🏆", label: "Community Leader", glow: "badge-glow-amber" },
 }
 
 export function BadgeChip({ badge }: { badge: string }) {
-  const config = BADGE_CONFIG[badge]
-  if (!config) return null
+  const meta = BADGE_META[badge] || { emoji: "🏅", label: badge.replace(/_/g, " "), glow: "" }
+
   return (
-    <span
-      className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${config.color}`}
-    >
-      <span className="text-[11px]">{config.emoji}</span>
-      {config.label}
+    <span className={`inline-flex items-center gap-1.5 text-[11px] bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-100 text-indigo-700 px-2.5 py-1 rounded-full font-medium capitalize ${meta.glow}`}>
+      <span>{meta.emoji}</span> {meta.label}
     </span>
   )
 }
 
 export function BadgeList({ badges }: { badges: string[] }) {
-  if (!badges || badges.length === 0) return null
   return (
-    <div className="flex flex-wrap gap-1">
-      {badges.map(b => (
+    <div className="flex flex-wrap gap-1.5">
+      {badges.map((b) => (
         <BadgeChip key={b} badge={b} />
       ))}
     </div>

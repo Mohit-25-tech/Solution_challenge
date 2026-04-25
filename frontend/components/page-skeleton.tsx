@@ -1,13 +1,22 @@
 "use client"
 
-export function PageSkeleton({ rows = 5 }: { rows?: number }) {
+export function PageSkeleton({ rows = 5, variant = "card" }: { rows?: number; variant?: "card" | "stat" | "row" }) {
+  const heights: Record<string, string> = {
+    card: "h-24",
+    stat: "h-16",
+    row: "h-12",
+  }
+
   return (
-    <div className="space-y-3 w-full animate-pulse">
+    <div className="space-y-3 w-full">
       {Array.from({ length: rows }).map((_, i) => (
         <div
           key={i}
-          className="h-16 bg-gray-100 rounded-xl"
-          style={{ opacity: 1 - i * 0.12 }}
+          className={`${heights[variant]} shimmer-gradient rounded-2xl`}
+          style={{
+            opacity: 1 - i * 0.1,
+            animationDelay: `${i * 100}ms`,
+          }}
         />
       ))}
     </div>
@@ -22,7 +31,7 @@ export function ErrorState({
   onRetry: () => void
 }) {
   return (
-    <div className="flex flex-col items-center justify-center py-20 gap-4 text-center">
+    <div className="flex flex-col items-center justify-center py-20 gap-4 text-center animate-fadeInUp">
       <div className="w-14 h-14 bg-red-50 rounded-full flex items-center justify-center text-2xl">
         ⚠️
       </div>
@@ -32,7 +41,7 @@ export function ErrorState({
       </div>
       <button
         onClick={onRetry}
-        className="text-sm text-blue-600 border border-blue-200 px-4 py-1.5 rounded-lg hover:bg-blue-50 transition-colors font-medium"
+        className="text-sm text-blue-600 border border-blue-200 px-4 py-1.5 rounded-lg hover:bg-blue-50 transition-all duration-150 font-medium active:scale-95"
       >
         Try again
       </button>

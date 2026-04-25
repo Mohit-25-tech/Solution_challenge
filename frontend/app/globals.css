@@ -75,7 +75,7 @@
 }
 
 @theme inline {
-  --font-sans: 'Geist', 'Geist Fallback';
+  --font-sans: 'Inter', 'Geist', 'Geist Fallback', system-ui, sans-serif;
   --font-mono: 'Geist Mono', 'Geist Mono Fallback';
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -122,4 +122,122 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* ═══════════════════════════════════════════════════
+   D4: Staggered list fade-in animation
+   ═══════════════════════════════════════════════════ */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fadeInUp {
+  animation: fadeInUp 250ms ease-out both;
+}
+
+/* ═══════════════════════════════════════════════════
+   D6: Success flash animation
+   ═══════════════════════════════════════════════════ */
+@keyframes flashGreen {
+  0%, 100% { background-color: transparent; }
+  50% { background-color: #dcfce7; }
+}
+.flash-success {
+  animation: flashGreen 800ms ease-out;
+}
+
+/* ═══════════════════════════════════════════════════
+   D7: Bell ring animation
+   ═══════════════════════════════════════════════════ */
+@keyframes bellRing {
+  0%, 100% { rotate: 0deg; }
+  25% { rotate: -15deg; }
+  75% { rotate: 15deg; }
+}
+.animate-bell-ring {
+  animation: bellRing 400ms ease-in-out;
+}
+
+/* ═══════════════════════════════════════════════════
+   C11: Shimmer loading animation
+   ═══════════════════════════════════════════════════ */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.shimmer-gradient {
+  background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+/* ═══════════════════════════════════════════════════
+   D1: Page entry fade-in
+   ═══════════════════════════════════════════════════ */
+.page-enter {
+  opacity: 0;
+  transition: opacity 300ms ease-out;
+}
+.page-enter-active {
+  opacity: 1;
+}
+
+/* ═══════════════════════════════════════════════════
+   D5: Number counter pulse
+   ═══════════════════════════════════════════════════ */
+@keyframes countPulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+.count-pulse {
+  animation: countPulse 300ms ease-out;
+}
+
+/* ═══════════════════════════════════════════════════
+   E6: Hide QR scanner branding
+   ═══════════════════════════════════════════════════ */
+#qr-reader__dashboard_section_swaplink,
+#qr-reader__status_span,
+#qr-reader__header_message,
+[id*="qr-reader"] img[alt*="Info"],
+#qr-reader__dashboard_section_csr a {
+  display: none !important;
+}
+#qr-reader {
+  border: none !important;
+}
+
+/* ═══════════════════════════════════════════════════
+   Gradient text utility
+   ═══════════════════════════════════════════════════ */
+.text-gradient-blue-purple {
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ═══════════════════════════════════════════════════
+   Pulsing dot
+   ═══════════════════════════════════════════════════ */
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.7; transform: scale(1.3); }
+}
+.animate-pulse-dot {
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+/* ═══════════════════════════════════════════════════
+   Badge glow effects
+   ═══════════════════════════════════════════════════ */
+.badge-glow-amber {
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.4);
+}
+.badge-glow-red {
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
+}
+.badge-glow-purple {
+  box-shadow: 0 0 8px rgba(139, 92, 246, 0.4);
 }

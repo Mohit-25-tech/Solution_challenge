@@ -1,7 +1,8 @@
 "use client"
-import { useEffect, useState, useRef } from "react"
+import { useEffect, useState, useRef, useCallback } from "react"
 import { notificationAPI } from "@/lib/api"
 import { useAuth } from "@/lib/auth-context"
+import { useRouter } from "next/navigation"
 
 type Notification = {
   id: number
@@ -10,6 +11,7 @@ type Notification = {
   type: string
   is_read: boolean
   created_at: string
+  reference_id?: number
 }
 
 const TYPE_COLORS: Record<string, string> = {
@@ -24,32 +26,44 @@ const TYPE_COLORS: Record<string, string> = {
 
 export function NotificationBell() {
   const { user } = useAuth()
+  const router = useRouter()
   const [notifs, setNotifs] = useState<Notification[]>([])
   const [unread, setUnread] = useState(0)
   const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
+  const [ringing, setRinging] = useState(false)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+  const prevUnreadRef = useRef(0)
 
-  const fetchNotifications = async () => {
+  const fetchNotifications = useCallback(async () => {
     if (!user?.id) return
     try {
       const data = await notificationAPI.getAll(user.id, 15)
       setNotifs(data.notifications || [])
-      setUnread(data.unread_count || 0)
-    } catch {
-      // Fail silently — bell is non-critical
-    }
-  }
+      const newUnread = data.unread_count || 0
 
+      // D7: Bell ring when unread increases
+      if (newUnread > prevUnreadRef.current && prevUnreadRef.current > 0) {
+        setRinging(true)
+        setTimeout(() => setRinging(false), 400)
+      }
+      prevUnreadRef.current = newUnread
+      setUnread(newUnread)
+    } catch {
+      // Fail silently
+    }
+  }, [user?.id])
+
+  // A4: Poll every 8 seconds
   useEffect(() => {
     fetchNotifications()
-    const interval = setInterval(fetchNotifications, 30000)
+    const interval = setInterval(fetchNotifications, 8000)
     return () => clearInterval(interval)
-  }, [user?.id])
+  }, [fetchNotifications])
 
   // Click outside to close
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) setOpen(false)
     }
     document.addEventListener("mousedown", handleClick)
     return () => document.removeEventListener("mousedown", handleClick)
@@ -60,29 +74,56 @@ export function NotificationBell() {
     await notificationAPI.markAllRead(user.id)
     setNotifs(prev => prev.map(n => ({ ...n, is_read: true })))
     setUnread(0)
+    prevUnreadRef.current = 0
   }
 
   const handleMarkOne = async (id: number) => {
     await notificationAPI.markRead(id)
     setNotifs(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n))
-    setUnread(prev => Math.max(0, prev - 1))
+    setUnread(prev => {
+      const newVal = Math.max(0, prev - 1)
+      prevUnreadRef.current = newVal
+      return newVal
+    })
+  }
+
+  // A4: Navigate based on notification type
+  const handleNotifClick = async (n: Notification) => {
+    if (!n.is_read) await handleMarkOne(n.id)
+    setOpen(false)
+
+    const role = user?.role
+    switch (n.type) {
+      case 'assigned':
+      case 'accepted':
+      case 'completed':
+        if (role === 'ngo') router.push('/coordinator/dashboard')
+        else router.push('/volunteer/portal')
+        break
+      case 'escalated':
+        router.push('/coordinator/requests')
+        break
+      case 'badge_earned':
+        router.push('/volunteer/profile')
+        break
+      default:
+        break
+    }
   }
 
   return (
-    <div ref={ref} className="relative">
+    <div ref={dropdownRef} className="relative">
       <button
         onClick={() => setOpen(o => !o)}
         aria-label="Notifications"
-        className="relative p-2 rounded-full hover:bg-gray-100 transition-colors"
+        className={`relative p-2 rounded-full hover:bg-gray-200 transition-colors ${ringing ? 'animate-bell-ring' : ''}`}
       >
-        {/* Bell icon */}
-        <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
             d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6 6 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
         </svg>
-        {/* Unread badge */}
         {unread > 0 && (
-          <span className="absolute top-0.5 right-0.5 min-w-[16px] h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-0.5">
+          <span className="absolute top-0 right-0 min-w-[16px] h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-0.5">
             {unread > 9 ? "9+" : unread}
           </span>
         )}
@@ -100,14 +141,20 @@ export function NotificationBell() {
                 </span>
               )}
             </div>
-            {unread > 0 && (
+            <div className="flex items-center gap-2">
               <button
-                onClick={handleMarkAll}
-                className="text-xs text-blue-600 hover:underline"
+                onClick={fetchNotifications}
+                className="text-gray-400 hover:text-blue-600 transition-colors p-1 rounded"
+                title="Refresh"
               >
-                Mark all read
+                <span className="text-sm">↻</span>
               </button>
-            )}
+              {unread > 0 && (
+                <button onClick={handleMarkAll} className="text-xs text-blue-600 hover:underline">
+                  Mark all read
+                </button>
+              )}
+            </div>
           </div>
 
           {/* List */}
@@ -115,19 +162,17 @@ export function NotificationBell() {
             {notifs.length === 0 && (
               <div className="px-4 py-10 text-center text-gray-400 text-sm">
                 <div className="text-2xl mb-2">🔔</div>
-                No notifications yet
+                You're all caught up
               </div>
             )}
             {notifs.map(n => (
               <div
                 key={n.id}
-                onClick={() => !n.is_read && handleMarkOne(n.id)}
+                onClick={() => handleNotifClick(n)}
                 className={`px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors ${!n.is_read ? "bg-blue-50/40" : ""}`}
               >
                 <div className="flex items-start gap-2.5">
-                  {!n.is_read && (
-                    <span className="mt-1.5 w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />
-                  )}
+                  {!n.is_read && <span className="mt-1.5 w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />}
                   {n.is_read && <span className="w-2 flex-shrink-0" />}
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-gray-900 truncate">{n.title}</p>

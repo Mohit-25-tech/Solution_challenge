@@ -1,124 +1,131 @@
-'use client'
+"use client"
+import { PageSkeleton } from "@/components/page-skeleton"
 
-import { Card } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { MapPin, Zap, Award, TrendingUp } from 'lucide-react'
-
-export interface MatchCandidate {
+interface MatchCandidate {
   volunteer_id: number
   volunteer_name: string
   match_score: number
   reason: string
   distance_km: number
-  breakdown?: any
+  breakdown?: {
+    skill_score?: number
+    distance_score?: number
+    urgency_bonus?: number
+    reliability_score?: number
+  }
 }
 
-interface NGOMatchDisplayProps {
+interface Props {
   candidates: MatchCandidate[]
   onAssign: (volunteerName: string) => void
-  isLoading?: boolean
+  isLoading: boolean
 }
 
-export function NGOMatchDisplay({ candidates, onAssign, isLoading }: NGOMatchDisplayProps) {
-  if (isLoading) {
-    return (
-      <div className="space-y-4">
-        {[1, 2, 3].map((i) => (
-          <Card key={i} className="p-4 animate-pulse">
-            <div className="h-20 bg-muted rounded" />
-          </Card>
-        ))}
-      </div>
-    )
-  }
+export function NGOMatchDisplay({ candidates, onAssign, isLoading }: Props) {
+  if (isLoading) return <PageSkeleton rows={3} />
 
-  if (!candidates || candidates.length === 0) {
+  if (candidates.length === 0) {
     return (
-      <Card className="p-8 text-center text-muted-foreground">
-        <Zap className="h-12 w-12 mx-auto mb-4 opacity-50" />
-        <p>No matching volunteers found at this moment.</p>
-        <p className="text-sm mt-2">Try adjusting urgency or location radius.</p>
-      </Card>
+      <div className="text-center py-8 animate-fadeInUp">
+        <p className="text-3xl mb-3">🔍</p>
+        <p className="text-sm font-medium text-gray-500">No active volunteers match this request</p>
+        <p className="text-xs text-gray-400 mt-1">Try adjusting urgency or required skills</p>
+      </div>
     )
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between mb-6">
-        <h3 className="text-lg font-semibold">Top Matching Volunteers</h3>
-        <Badge variant="secondary">{candidates.length} volunteers</Badge>
-      </div>
+    <div className="space-y-3">
+      {candidates.map((c, i) => {
+        const pct = Math.round(c.match_score * 100)
+        const isBest = i === 0
 
-      {candidates.map((candidate, idx) => (
-        <Card key={candidate.volunteer_id} className="p-4 hover:shadow-md transition-shadow border-l-4 border-primary">
-          <div className="flex items-start justify-between gap-4">
-            {/* Left Section */}
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-2">
-                <h4 className="font-semibold text-lg">{candidate.volunteer_name}</h4>
-                <Badge variant="outline" className="bg-primary text-primary-foreground">
-                  #{idx + 1}
-                </Badge>
+        return (
+          <div
+            key={c.volunteer_id}
+            className={`border rounded-2xl p-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md animate-fadeInUp ${
+              isBest ? "border-amber-200 bg-amber-50/50 shadow-sm" : "border-gray-100 bg-white"
+            }`}
+            style={{ animationDelay: `${i * 80}ms` }}
+          >
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <div className="flex items-center gap-3">
+                <div
+                  className="w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0"
+                  style={{
+                    background: isBest
+                      ? "linear-gradient(135deg, #f59e0b, #d97706)"
+                      : "linear-gradient(135deg, #3b82f6, #8b5cf6)",
+                  }}
+                >
+                  {c.volunteer_name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase()}
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-sm text-gray-900">{c.volunteer_name}</span>
+                    {isBest && (
+                      <span className="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-bold badge-glow-amber">
+                        Best Match ✦
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-0.5">{c.reason}</p>
+                </div>
               </div>
 
-              {/* Match Score */}
-              <div className="mb-3 p-2 rounded-lg bg-gradient-to-r from-primary/10 to-transparent">
-                <div className="flex items-center gap-2">
-                  <TrendingUp className="h-4 w-4 text-primary" />
-                  <span className="font-semibold text-primary">Score: {(candidate.match_score * 100).toFixed(0)}%</span>
+              {/* Circular progress ring */}
+              <div className="flex-shrink-0 w-14 h-14 relative">
+                <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
+                  <circle cx="18" cy="18" r="15.9" fill="none" stroke="#f3f4f6" strokeWidth="3" />
+                  <circle cx="18" cy="18" r="15.9" fill="none"
+                    stroke={pct >= 80 ? "#22c55e" : pct >= 60 ? "#f59e0b" : "#9ca3af"}
+                    strokeWidth="3" strokeDasharray={`${pct} ${100 - pct}`}
+                    strokeLinecap="round" />
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-xs font-bold text-gray-900">{pct}%</span>
                 </div>
-                {candidate.breakdown && (
-                  <div className="text-xs text-muted-foreground mt-1 grid grid-cols-4 gap-2 mt-2">
-                    <div>
-                      <span className="font-medium">Skill:</span> {(candidate.breakdown.skill * 100).toFixed(0)}%
-                    </div>
-                    <div>
-                      <span className="font-medium">Distance:</span> {(candidate.breakdown.distance * 100).toFixed(0)}%
-                    </div>
-                    <div>
-                      <span className="font-medium">Urgency:</span> {(candidate.breakdown.urgency * 100).toFixed(0)}%
-                    </div>
-                    <div>
-                      <span className="font-medium">Reliability:</span> {(candidate.breakdown.reliability * 100).toFixed(0)}%
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Reason */}
-              <p className="text-sm text-muted-foreground mb-3 flex items-start gap-2">
-                <span className="text-primary font-bold mt-0.5">✔</span>
-                {candidate.reason}
-              </p>
-
-              {/* Distance & Reliability */}
-              <div className="flex flex-wrap gap-3 text-sm mt-3 border-t pt-3">
-                <div className="flex items-center gap-1">
-                  <MapPin className="h-4 w-4 text-muted-foreground" />
-                  <span>{candidate.distance_km} km away</span>
-                </div>
-                {candidate.breakdown?.reliability !== undefined && (
-                  <div className="flex items-center gap-1">
-                    <Award className="h-4 w-4 text-muted-foreground" />
-                    <span>Reliability: {(candidate.breakdown.reliability * 100).toFixed(0)}%</span>
-                  </div>
-                )}
               </div>
             </div>
 
-            {/* Action Button */}
-            <div>
-              <Button
-                onClick={() => onAssign(candidate.volunteer_name)}
-                className="h-10 bg-primary hover:bg-primary/90"
+            {/* Breakdown bars */}
+            {c.breakdown && (
+              <div className="grid grid-cols-4 gap-2 mb-3">
+                {[
+                  { label: "Skill", val: c.breakdown.skill_score || 0, color: "bg-blue-500" },
+                  { label: "Dist", val: c.breakdown.distance_score || 0, color: "bg-green-500" },
+                  { label: "Urgency", val: c.breakdown.urgency_bonus || 0, color: "bg-orange-500" },
+                  { label: "Reliability", val: c.breakdown.reliability_score || 0, color: "bg-purple-500" },
+                ].map(b => (
+                  <div key={b.label}>
+                    <p className="text-[9px] text-gray-400 mb-0.5">{b.label}</p>
+                    <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                      <div className={`h-full ${b.color} rounded-full transition-all`} style={{ width: `${Math.min(100, b.val * 100)}%` }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-gray-400">
+                📍 {c.distance_km < 0.1 ? "< 0.1" : c.distance_km.toFixed(1)}km away
+              </span>
+              <button
+                onClick={() => onAssign(c.volunteer_name)}
+                className="text-xs text-white px-4 py-2 rounded-xl font-medium transition-all active:scale-95"
+                style={{
+                  background: isBest
+                    ? "linear-gradient(135deg, #f59e0b, #d97706)"
+                    : "linear-gradient(135deg, #3b82f6, #4f46e5)",
+                }}
               >
-                Assign
-              </Button>
+                ✦ Assign
+              </button>
             </div>
           </div>
-        </Card>
-      ))}
+        )
+      })}
     </div>
   )
 }

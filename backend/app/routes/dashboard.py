@@ -58,6 +58,10 @@ def get_dashboard_stats(user_id: Optional[int] = None, db: Session = Depends(get
 
     avg_reliability = db.query(func.avg(Volunteer.reliability_score)).scalar() or 0.0
 
+    pending_requests_count = req_query.filter(
+        Request.status == "pending"
+    ).count() or 0
+
     return {
         "total_volunteers": total_volunteers,
         "active_requests": active_requests,
@@ -68,6 +72,7 @@ def get_dashboard_stats(user_id: Optional[int] = None, db: Session = Depends(get
         "pending_assignments": pending_assignments,
         "active_assignments_now": active_assignments_now,
         "volunteers_on_ground": volunteers_on_ground,
+        "pending_requests_count": pending_requests_count,
     }
 
 

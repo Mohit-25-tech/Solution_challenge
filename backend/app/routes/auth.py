@@ -5,7 +5,7 @@ from jose import jwt
 import bcrypt
 from app.db.database import get_db
 from app.models.models import User, Volunteer
-from app.schemas import UserRegister, UserLogin
+from app.schemas import UserRegister, UserLogin, PasswordReset
 from app.core.config import settings
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -113,3 +113,29 @@ def login(login_data: UserLogin, db: Session = Depends(get_db)):
             "volunteer_id": volunteer_id  # ← critical for volunteer-side features
         }
     }
+
+
+@router.post("/reset-password")
+def reset_password(data: PasswordReset, db: Session = Depends(get_db)):
+    """
+    Reset password for a user if their email exists in the database.
+    """
+    user = db.query(User).filter(User.email == data.email).first()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No account found with this email address"
+        )
+
+    if len(data.new_password) < 6:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password must be at least 6 characters"
+        )
+
+    user.password_hash = get_password_hash(data.new_password)
+    db.commit()
+
+    return {"success": True, "message": "Password reset successfully"}
+

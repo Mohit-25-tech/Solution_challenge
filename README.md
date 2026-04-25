@@ -96,9 +96,29 @@ Once the backend is running, you can view the fully interactive Swagger Interfac
 
 ## Demo Credentials
 
-- **NGO Coordinator:**
-  - Email: ngo@demo.com
-  - Password: demo123
-- **Volunteers:**
-  - Email range: volunteer1@demo.com to volunteer50@demo.com
-  - Password: demo123
+You can use the following real credentials from the seeded database to test the application:
+
+**Coordinators (NGO / Organizers)**:
+- **Priya Kapoor**
+  - Email: `ngo1@volunteermatch.com`
+  - Password: `password123`
+- **Arjun Singh**
+  - Email: `ngo2@volunteermatch.com`
+  - Password: `password123`
+- **Prayan Foundation**
+  - Email: `prayan@foundation.org` (or your registered email)
+  - Password: *(Lost/Unknown - please use the 'Forgot password?' option on the login page to securely reset it)*
+
+**Volunteers**:
+- **Tirth Patel**
+  - Email: `vol1@volunteermatch.com`
+  - Password: `password123`
+- **Rajan Mehta**
+  - Email: `rajan@mail.com`
+  - Password: `password123`
+- **Sunita Patel**
+  - Email: `sunita@mail.com`
+  - Password: `password123`
+- **Amit Kumar**
+  - Email: `amit@mail.com`
+  - Password: `password123`
